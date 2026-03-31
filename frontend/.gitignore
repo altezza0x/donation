@@ -12,6 +12,15 @@ dist
 dist-ssr
 *.local
 
+# Hardhat
+artifacts
+cache
+coverage
+typechain
+
+# Environment
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
