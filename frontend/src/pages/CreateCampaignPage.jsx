@@ -14,7 +14,7 @@ const CATEGORY_EMOJIS = {
 
 export default function CreateCampaignPage() {
   const navigate = useNavigate();
-  const { contract, isConnected, user } = useWeb3();
+  const { contract, isConnected, user, isVerifiedCreator } = useWeb3();
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [form, setForm] = useState({
@@ -24,6 +24,7 @@ export default function CreateCampaignPage() {
     targetAmount: '',
     durationDays: '30',
     imageUrl: '',
+    beneficiary: '',
   });
 
   const handleChange = (e) => {
@@ -58,7 +59,7 @@ export default function CreateCampaignPage() {
           body: JSON.stringify({ image: base64, ext })
         });
         const data = await res.json();
-        
+
         if (res.ok) {
           setForm(prev => ({ ...prev, imageUrl: data.url }));
           toast.success('Gambar berhasil diunggah!', { id: toastId });
@@ -84,6 +85,7 @@ export default function CreateCampaignPage() {
     if (!form.title.trim()) { toast.error('Judul tidak boleh kosong'); return; }
     if (!form.targetAmount || parseFloat(form.targetAmount) <= 0) { toast.error('Target donasi harus > 0'); return; }
     if (!form.durationDays || parseInt(form.durationDays) < 1) { toast.error('Durasi minimal 1 hari'); return; }
+    if (!form.beneficiary || !/^0x[a-fA-F0-9]{40}$/.test(form.beneficiary)) { toast.error('Format alamat penerima dana (beneficiary) tidak valid'); return; }
 
     setLoading(true);
     const toastId = toast.loading('Membuat kampanye di blockchain...');
@@ -98,7 +100,8 @@ export default function CreateCampaignPage() {
         form.category,
         form.imageUrl,
         targetWei,
-        duration
+        duration,
+        form.beneficiary
       );
 
       toast.loading('Menunggu konfirmasi blockchain...', { id: toastId });
@@ -140,6 +143,34 @@ export default function CreateCampaignPage() {
             <button onClick={() => navigate('/register')} className="gate-btn">
               Daftar Sekarang
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isVerifiedCreator) {
+    return (
+      <div className="create-page">
+        <div className="not-whitelisted-wrapper">
+          <div className="not-whitelisted-card">
+            {/* Text */}
+            <div className="nw-text">
+              <h2 className="nw-title">Not Whitelisted</h2>
+              <p className="nw-subtitle">
+                Wallet Anda tidak terdaftar sebagai <span className="nw-highlight">Verified Creator</span>.
+              </p>
+              <p className="nw-desc">
+                Platform hanya mengizinkan penggalangan dana oleh akun yang telah melewati verifikasi KYC oleh administrator. Silakan hubungi admin untuk informasi lebih lanjut.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="nw-actions">
+              <button className="nw-btn-home" onClick={() => navigate('/')}>
+                Kembali ke Beranda
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -225,8 +256,22 @@ export default function CreateCampaignPage() {
               </div>
 
               <div className="form-group" style={{ marginTop: '20px' }}>
+                <label className="form-label">Alamat Penerima Dana *</label>
+                <input
+                  name="beneficiary"
+                  type="text"
+                  value={form.beneficiary}
+                  onChange={handleChange}
+                  placeholder="0x..."
+                  className="form-input"
+                  required
+                />
+                <span className="form-hint">Alamat dompet (wallet address) pihak yang akan menerima dana saat dicairkan.</span>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '20px' }}>
                 <label className="form-label">Gambar Utama (Opsional)</label>
-                
+
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                   <input
                     name="imageUrl"
@@ -240,10 +285,10 @@ export default function CreateCampaignPage() {
                   <label className="quick-amount" style={{ margin: 0, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', opacity: uploadingImage ? 0.5 : 1 }}>
                     <Upload size={14} />
                     {uploadingImage ? 'Mengunggah...' : 'Upload File'}
-                    <input 
-                      type="file" 
-                      accept="image/jpeg, image/png, image/webp, image/gif" 
-                      onChange={handleImageUpload} 
+                    <input
+                      type="file"
+                      accept="image/jpeg, image/png, image/webp, image/gif"
+                      onChange={handleImageUpload}
                       style={{ display: 'none' }}
                       disabled={uploadingImage}
                     />
@@ -343,7 +388,6 @@ export default function CreateCampaignPage() {
                 </>
               ) : (
                 <>
-                  <PlusCircle size={18} />
                   Buat Kampanye
                 </>
               )}
@@ -354,8 +398,8 @@ export default function CreateCampaignPage() {
           <div className="create-preview">
             <h3 className="preview-title">Preview Kampanye</h3>
             <div className="preview-card glass-card">
-              <div 
-                className="preview-thumb" 
+              <div
+                className="preview-thumb"
                 style={form.imageUrl ? { backgroundImage: `url(${form.imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
               >
                 {!form.imageUrl && <span className="preview-emoji">{preview.emoji}</span>}

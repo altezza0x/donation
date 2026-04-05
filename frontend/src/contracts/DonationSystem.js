@@ -246,6 +246,11 @@ export const DONATION_SYSTEM_ABI = [
         "type": "address"
       },
       {
+        "internalType": "address payable",
+        "name": "beneficiary",
+        "type": "address"
+      },
+      {
         "internalType": "string",
         "name": "title",
         "type": "string"
@@ -335,6 +340,11 @@ export const DONATION_SYSTEM_ABI = [
         "internalType": "uint256",
         "name": "_durationDays",
         "type": "uint256"
+      },
+      {
+        "internalType": "address payable",
+        "name": "_beneficiary",
+        "type": "address"
       }
     ],
     "name": "createCampaign",
@@ -452,6 +462,11 @@ export const DONATION_SYSTEM_ABI = [
           {
             "internalType": "address payable",
             "name": "owner",
+            "type": "address"
+          },
+          {
+            "internalType": "address payable",
+            "name": "beneficiary",
             "type": "address"
           },
           {
@@ -605,6 +620,11 @@ export const DONATION_SYSTEM_ABI = [
             "type": "uint256"
           },
           {
+            "internalType": "string",
+            "name": "purpose",
+            "type": "string"
+          },
+          {
             "internalType": "uint256",
             "name": "timestamp",
             "type": "uint256"
@@ -643,6 +663,11 @@ export const DONATION_SYSTEM_ABI = [
           {
             "internalType": "address payable",
             "name": "owner",
+            "type": "address"
+          },
+          {
+            "internalType": "address payable",
+            "name": "beneficiary",
             "type": "address"
           },
           {
@@ -821,6 +846,11 @@ export const DONATION_SYSTEM_ABI = [
             "type": "uint256"
           },
           {
+            "internalType": "string",
+            "name": "purpose",
+            "type": "string"
+          },
+          {
             "internalType": "uint256",
             "name": "timestamp",
             "type": "uint256"
@@ -913,6 +943,11 @@ export const DONATION_SYSTEM_ABI = [
           {
             "internalType": "address payable",
             "name": "owner",
+            "type": "address"
+          },
+          {
+            "internalType": "address payable",
+            "name": "beneficiary",
             "type": "address"
           },
           {
@@ -1130,9 +1165,51 @@ export const DONATION_SYSTEM_ABI = [
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "verifiedCreators",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_creator",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "_status",
+        "type": "bool"
+      }
+    ],
+    "name": "verifyCreator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "_campaignId",
         "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "_withdrawalPurpose",
+        "type": "string"
       }
     ],
     "name": "withdrawFunds",
@@ -1193,6 +1270,11 @@ export const DONATION_SYSTEM_ABI = [
         "internalType": "uint256",
         "name": "amount",
         "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "purpose",
+        "type": "string"
       },
       {
         "internalType": "uint256",

@@ -98,6 +98,29 @@
   color: var(--primary-400);
 }
 
+/* External links col — Globe left, text, arrow right next to text */
+.footer-nav-ext a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-nav-ext a span {
+  white-space: nowrap;
+}
+
+.ext-arrow {
+  flex-shrink: 0;
+  opacity: 0.4;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.footer-nav-ext a:hover .ext-arrow {
+  opacity: 1;
+  transform: translate(2px, -2px);
+}
+
+
 /* Research */
 .footer-research {
   display: flex;
@@ -112,11 +135,6 @@
   gap: 8px;
   font-size: 13px;
   color: var(--text-muted);
-}
-
-.research-item svg {
-  color: var(--primary-400);
-  flex-shrink: 0;
 }
 
 .footer-thesis {
@@ -154,6 +172,9 @@
   color: var(--warning-400);
 }
 
+/* ── Responsive ── */
+
+/* Tablet */
 @media (max-width: 1024px) {
   .footer-grid {
     grid-template-columns: 1fr 1fr;
@@ -165,13 +186,59 @@
   }
 }
 
-@media (max-width: 640px) {
+/* Mobile landscape */
+@media (max-width: 768px) {
+  .footer {
+    padding: 48px 0 24px;
+  }
+
   .footer-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+  }
+
+  .footer-brand {
+    grid-column: 1 / -1;
   }
 
   .footer-bottom {
     flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  /* Make ext arrows visible and not overflow */
+  .footer-nav-ext a span {
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
+/* Mobile portrait */
+@media (max-width: 480px) {
+  .footer {
+    padding: 40px 0 20px;
+  }
+
+  .footer-grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .footer-bottom {
+    flex-direction: column;
+    align-items: center;
     text-align: center;
+    gap: 8px;
+  }
+
+  .footer-note {
+    font-size: 11px;
+    padding: 4px 10px;
+    text-align: center;
+  }
+
+  .footer-badges {
+    flex-wrap: wrap;
   }
 }

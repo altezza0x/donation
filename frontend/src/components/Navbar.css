@@ -19,8 +19,8 @@
 .navbar-inner {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   height: 72px;
-  gap: 32px;
 }
 
 /* Logo */
@@ -30,6 +30,7 @@
   gap: 10px;
   text-decoration: none;
   font-family: var(--font-heading);
+  flex: 1;
 }
 
 .custom-logo-img {
@@ -76,8 +77,8 @@
 .navbar-links {
   display: flex;
   align-items: center;
-  gap: 4px;
-  flex: 1;
+  justify-content: center;
+  gap: 8px;
 }
 
 .nav-link {
@@ -108,8 +109,9 @@
 .navbar-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
-  margin-left: auto;
+  flex: 1;
 }
 
 /* Connect Wallet Button */

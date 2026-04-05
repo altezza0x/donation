@@ -1,32 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useWeb3 } from '../context/Web3Context';
 import CampaignCard from '../components/CampaignCard';
-import { Search, Filter, LayoutGrid, List, Inbox } from 'lucide-react';
+import { Search, Filter, Inbox, ChevronDown } from 'lucide-react';
 import './CampaignsPage.css';
 
 const CATEGORIES = ['Semua', 'Pendidikan', 'Kesehatan', 'Bencana Alam', 'Keagamaan', 'Sosial', 'Lainnya'];
 const SORTS = [
-  { value: 'newest', label: 'Terbaru' },
-  { value: 'popular', label: 'Terpopuler' },
+  { value: 'newest',   label: 'Terbaru' },
+  { value: 'popular',  label: 'Terpopuler' },
   { value: 'progress', label: 'Progress Tertinggi' },
-  { value: 'target', label: 'Target Tertinggi' },
+  { value: 'target',   label: 'Target Tertinggi' },
 ];
 
 export default function CampaignsPage() {
-  const { contract, isConnected } = useWeb3();
+  const { readOnlyContract, isConnected } = useWeb3();
   const [campaigns, setCampaigns] = useState([]);
-  const [filtered, setFiltered] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('Semua');
   const [sort, setSort] = useState('newest');
   const [showActive, setShowActive] = useState(true);
+  const [sortOpen, setSortOpen] = useState(false);
+  const sortRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (sortRef.current && !sortRef.current.contains(e.target)) setSortOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   useEffect(() => {
     const fetchCampaigns = async () => {
-      if (!contract) { setLoading(false); return; }
+      if (!readOnlyContract) { setLoading(false); return; }
       try {
-        const all = await contract.getAllCampaigns();
+        const all = await readOnlyContract.getAllCampaigns();
         setCampaigns([...all]);
       } catch (err) {
         console.error('Error fetching campaigns:', err);
@@ -35,9 +46,9 @@ export default function CampaignsPage() {
       }
     };
     fetchCampaigns();
-  }, [contract]);
+  }, [readOnlyContract]);
 
-  useEffect(() => {
+  const filtered = useMemo(() => {
     const now = Date.now() / 1000;
     let result = [...campaigns];
 
@@ -68,7 +79,7 @@ export default function CampaignsPage() {
       return 0;
     });
 
-    setFiltered(result);
+    return result;
   }, [campaigns, search, category, sort, showActive]);
 
   return (
@@ -82,7 +93,7 @@ export default function CampaignsPage() {
             Temukan Kampanye yang <span className="gradient-text">Menginspirasi</span>
           </h1>
           <p className="campaigns-page-desc">
-            Semua kampanye terdaftar di blockchain Ethereum. Setiap donasi tercatat transparan dan dapat dilacak.
+            Semua Kampanye Terdaftar di Blockchain. Setiap Donasi Tercatat Transparan dan Dapat Dilacak.
           </p>
         </div>
       </div>
@@ -102,10 +113,32 @@ export default function CampaignsPage() {
             />
           </div>
 
-          {/* Sort */}
-          <select value={sort} onChange={e => setSort(e.target.value)} className="filter-select">
-            {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
+          {/* Sort — custom dropdown */}
+          <div className="sort-dropdown" ref={sortRef}>
+            <button
+              className={`sort-trigger ${sortOpen ? 'open' : ''}`}
+              onClick={() => setSortOpen(v => !v)}
+              type="button"
+            >
+              <span>{SORTS.find(x => x.value === sort)?.label}</span>
+              <ChevronDown size={14} className={`sort-chevron ${sortOpen ? 'rotated' : ''}`} />
+            </button>
+
+            {sortOpen && (
+              <div className="sort-menu">
+                {SORTS.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    className={`sort-item ${sort === value ? 'active' : ''}`}
+                    onClick={() => { setSort(value); setSortOpen(false); }}
+                    type="button"
+                  >
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Active toggle */}
           <button
@@ -140,12 +173,7 @@ export default function CampaignsPage() {
         )}
 
         {/* Content */}
-        {!isConnected ? (
-          <div className="campaigns-notice">
-            <h2>Hubungkan MetaMask</h2>
-            <p>Koneksikan wallet untuk melihat kampanye dari blockchain.</p>
-          </div>
-        ) : loading ? (
+        {loading ? (
           <div className="campaigns-grid-page">
             {[1, 2, 3, 4, 5, 6].map(i => (
               <div key={i} className="skeleton" style={{ height: 360 }} />

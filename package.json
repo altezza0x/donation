@@ -1,0 +1,29 @@
+{
+  "name": "web3-project",
+  "private": true,
+  "scripts": {
+    "node": "cd blockchain && npx hardhat node",
+    "deploy": "cd blockchain && npx hardhat run scripts/deploy.js --network localhost",
+    "frontend": "cd frontend && npm run dev",
+    "start": "concurrently -n NODE,DEPLOY,FE \"npm run node\" \"wait-on tcp:8545 && npm run deploy\" \"npm run frontend\""
+  },
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/altezza0x/donation.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/altezza0x/donation/issues"
+  },
+  "homepage": "https://github.com/altezza0x/donation#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "wait-on": "^9.0.4"
+  }
+}

@@ -13,6 +13,7 @@ contract DonationSystem {
     struct Campaign {
         uint256 id;
         address payable owner;
+        address payable beneficiary;
         string title;
         string description;
         string category;
@@ -44,6 +45,7 @@ contract DonationSystem {
         string campaignTitle;
         address recipient;
         uint256 amount;
+        string purpose;
         uint256 timestamp;
         bytes32 txHash;
     }
@@ -55,6 +57,8 @@ contract DonationSystem {
     uint256 private campaignCounter;
     uint256 private donationCounter;
     uint256 private withdrawalCounter;
+
+    mapping(address => bool) public verifiedCreators;
 
     mapping(uint256 => Campaign) public campaigns;
     mapping(uint256 => Donation[]) public campaignDonations;
@@ -104,6 +108,11 @@ contract DonationSystem {
         _;
     }
 
+    modifier onlyVerifiedCreator() {
+        require(verifiedCreators[msg.sender], "Hanya pembuat kampanye terverifikasi yang dapat membuat kampanye");
+        _;
+    }
+
     modifier campaignExists(uint256 _campaignId) {
         require(_campaignId > 0 && _campaignId <= campaignCounter, "Kampanye tidak ditemukan");
         _;
@@ -132,11 +141,13 @@ contract DonationSystem {
         string memory _category,
         string memory _imageUrl,
         uint256 _targetAmount,
-        uint256 _durationDays
-    ) external returns (uint256) {
+        uint256 _durationDays,
+        address payable _beneficiary
+    ) external onlyVerifiedCreator returns (uint256) {
         require(bytes(_title).length > 0, "Judul tidak boleh kosong");
         require(_targetAmount > 0, "Target donasi harus lebih dari 0");
         require(_durationDays > 0 && _durationDays <= 365, "Durasi harus antara 1-365 hari");
+        require(_beneficiary != address(0), "Alamat penerima manfaat tidak valid");
 
         campaignCounter++;
         uint256 newCampaignId = campaignCounter;
@@ -145,6 +156,7 @@ contract DonationSystem {
         campaigns[newCampaignId] = Campaign({
             id: newCampaignId,
             owner: payable(msg.sender),
+            beneficiary: _beneficiary,
             title: _title,
             description: _description,
             category: _category,
@@ -279,7 +291,7 @@ contract DonationSystem {
      * @dev Menarik dana kampanye (hanya pemilik kampanye)
      * Mencatat riwayat penarikan untuk transparansi
      */
-    function withdrawFunds(uint256 _campaignId)
+    function withdrawFunds(uint256 _campaignId, string memory _withdrawalPurpose)
         external
         campaignExists(_campaignId)
     {
@@ -291,6 +303,7 @@ contract DonationSystem {
             block.timestamp > campaign.deadline || campaign.raisedAmount >= campaign.targetAmount,
             "Kampanye belum selesai atau target belum tercapai"
         );
+        require(bytes(_withdrawalPurpose).length > 0, "Tujuan penarikan harus diisi");
 
         uint256 amount = campaign.raisedAmount;
         campaign.isWithdrawn = true;
@@ -304,8 +317,9 @@ contract DonationSystem {
             id: newWithdrawalId,
             campaignId: _campaignId,
             campaignTitle: campaign.title,
-            recipient: msg.sender,
+            recipient: campaign.beneficiary,
             amount: amount,
+            purpose: _withdrawalPurpose,
             timestamp: block.timestamp,
             txHash: blockhash(block.number - 1)
         });
@@ -313,9 +327,9 @@ contract DonationSystem {
         withdrawalIds.push(newWithdrawalId);
         campaignWithdrawalId[_campaignId] = newWithdrawalId;
 
-        campaign.owner.transfer(amount);
+        campaign.beneficiary.transfer(amount);
 
-        emit FundsWithdrawn(_campaignId, msg.sender, amount, block.timestamp);
+        emit FundsWithdrawn(_campaignId, campaign.beneficiary, amount, block.timestamp);
     }
 
     /**
@@ -377,6 +391,13 @@ contract DonationSystem {
     }
 
     // ========== ADMIN FUNCTIONS ==========
+
+    /**
+     * @dev Memverifikasi pembuat kampanye
+     */
+    function verifyCreator(address _creator, bool _status) external onlyOwner {
+        verifiedCreators[_creator] = _status;
+    }
 
     /**
      * @dev Menonaktifkan kampanye (admin)

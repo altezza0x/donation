@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Zap, ExternalLink, Shield, BookOpen } from 'lucide-react';
+import { Zap, Shield, BookOpen, Globe, ArrowUpRight } from 'lucide-react';
 import './Footer.css';
 
 export default function Footer() {
@@ -11,19 +11,16 @@ export default function Footer() {
           {/* Brand */}
           <div className="footer-brand">
             <div className="footer-logo">
-              <div className="logo-icon-sm">
-                <Zap size={16} />
-              </div>
               <span className="footer-logo-text">Chain<span>Donate</span></span>
             </div>
             <p className="footer-desc">
-              Prototype sistem donasi digital berbasis teknologi blockchain Ethereum 
+              Prototype sistem donasi digital berbasis teknologi blockchain Ethereum
               untuk memastikan transparansi dan akuntabilitas setiap transaksi.
             </p>
             <div className="footer-badges">
               <span className="badge badge-primary">Ethereum</span>
               <span className="badge badge-success">Solidity</span>
-              <span className="badge badge-primary">Wagmi</span>
+              <span className="badge badge-primary">Sepolia</span>
             </div>
           </div>
 
@@ -42,21 +39,26 @@ export default function Footer() {
           {/* Tech Stack */}
           <div className="footer-col">
             <h4 className="footer-col-title">Teknologi</h4>
-            <nav className="footer-nav">
+            <nav className="footer-nav footer-nav-ext">
               <a href="https://ethereum.org" target="_blank" rel="noreferrer">
-                Ethereum Blockchain <ExternalLink size={11} />
+                <span>Ethereum</span>
+                <ArrowUpRight size={13} className="ext-arrow" />
               </a>
               <a href="https://soliditylang.org" target="_blank" rel="noreferrer">
-                Solidity Smart Contract <ExternalLink size={11} />
+                <span>Solidity Smart Contract</span>
+                <ArrowUpRight size={13} className="ext-arrow" />
               </a>
-              <a href="https://ethers.org" target="_blank" rel="noreferrer">
-                Ethers.js v6 <ExternalLink size={11} />
+              <a href="https://viem.sh/" target="_blank" rel="noreferrer">
+                <span>Viem</span>
+                <ArrowUpRight size={13} className="ext-arrow" />
               </a>
               <a href="https://hardhat.org" target="_blank" rel="noreferrer">
-                Hardhat Framework <ExternalLink size={11} />
+                <span>Hardhat Framework</span>
+                <ArrowUpRight size={13} className="ext-arrow" />
               </a>
               <a href="https://metamask.io" target="_blank" rel="noreferrer">
-                MetaMask Wallet <ExternalLink size={11} />
+                <span>MetaMask Wallet</span>
+                <ArrowUpRight size={13} className="ext-arrow" />
               </a>
             </nav>
           </div>
@@ -66,20 +68,17 @@ export default function Footer() {
             <h4 className="footer-col-title">Tentang Penelitian</h4>
             <div className="footer-research">
               <div className="research-item">
-                <Shield size={14} />
                 <span>Prototype Sistem Donasi</span>
               </div>
               <div className="research-item">
-                <BookOpen size={14} />
                 <span>Berbasis Blockchain Ethereum</span>
               </div>
               <div className="research-item">
-                <Zap size={14} />
                 <span>Sepolia Testnet</span>
               </div>
             </div>
             <p className="footer-thesis">
-              Skripsi — Implementasi Teknologi Blockchain pada Prototype Sistem Donasi Digital 
+              Skripsi — Implementasi Teknologi Blockchain pada Prototype Sistem Donasi Digital
               Berbasis Web untuk Menjamin Transparansi Transaksi
             </p>
           </div>

@@ -15,8 +15,22 @@ export const Web3Provider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [contract, setContract] = useState(null);
   const [isUserLoaded, setIsUserLoaded] = useState(false);
+  const [isContractOwner, setIsContractOwner] = useState(false);
+  const [isVerifiedCreator, setIsVerifiedCreator] = useState(false);
 
-  // Buat wrapper contract yang kompatibel dengan ethers-style calls
+  // Read-only contract: selalu tersedia selama publicClient ada (tidak perlu koneksi wallet)
+  const [readOnlyContract, setReadOnlyContract] = useState(null);
+
+  useEffect(() => {
+    if (!publicClient || !CONTRACT_ADDRESS) {
+      setReadOnlyContract(null);
+      return;
+    }
+    const readOnly = createContractWrapper(publicClient, null, CONTRACT_ADDRESS, DONATION_SYSTEM_ABI);
+    setReadOnlyContract(readOnly);
+  }, [publicClient]);
+
+  // Buat wrapper contract yang kompatibel dengan ethers-style calls (hanya jika wallet terkoneksi)
   useEffect(() => {
     if (!publicClient || !isConnected || !CONTRACT_ADDRESS) {
       setContract(null);
@@ -58,8 +72,25 @@ export const Web3Provider = ({ children }) => {
     } else {
       setUser(null);
       setIsUserLoaded(false);
+      setIsContractOwner(false);
+      setIsVerifiedCreator(false);
     }
   }, [isConnected, address, loadUser]);
+
+  useEffect(() => {
+    if (contract && address) {
+      contract.owner().then((res) => {
+        setIsContractOwner(res.toLowerCase() === address.toLowerCase());
+      }).catch(console.error);
+
+      contract.verifiedCreators(address).then((res) => {
+        setIsVerifiedCreator(res);
+      }).catch(console.error);
+    } else {
+      setIsContractOwner(false);
+      setIsVerifiedCreator(false);
+    }
+  }, [contract, address]);
 
   const refreshUser = useCallback(async () => {
     if (address) {
@@ -80,6 +111,7 @@ export const Web3Provider = ({ children }) => {
     provider: publicClient,
     signer: walletClient,
     contract,
+    readOnlyContract,
     account: address,
     user,
     networkId: publicClient?.chain?.id?.toString() || null,
@@ -91,6 +123,8 @@ export const Web3Provider = ({ children }) => {
     isConnected,
     isUserLoaded,
     shortAddress,
+    isContractOwner,
+    isVerifiedCreator,
   };
 
   return <Web3Context.Provider value={value}>{children}</Web3Context.Provider>;

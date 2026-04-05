@@ -18,7 +18,7 @@ const navLinks = [
 
 export default function Navbar() {
   const location = useLocation();
-  const { user, isConnected } = useWeb3();
+  const { user, isConnected, isContractOwner } = useWeb3();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -56,6 +56,15 @@ export default function Navbar() {
               {label}
             </Link>
           ))}
+          {isContractOwner && (
+            <Link
+              to="/admin"
+              className={`nav-link ${location.pathname === '/admin' ? 'active' : ''}`}
+            >
+              <Shield size={15} />
+              Admin
+            </Link>
+          )}
         </div>
 
         {/* Right Side — RainbowKit ConnectButton */}
@@ -163,6 +172,15 @@ export default function Navbar() {
               {label}
             </Link>
           ))}
+          {isContractOwner && (
+            <Link
+              to="/admin"
+              className={`mobile-nav-link ${location.pathname === '/admin' ? 'active' : ''}`}
+            >
+              <Shield size={16} />
+              Admin
+            </Link>
+          )}
         </div>
       )}
     </nav>

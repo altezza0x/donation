@@ -6,9 +6,44 @@ import CampaignCard from '../components/CampaignCard';
 import {
   Shield, Zap, TrendingUp, Users, Heart, ArrowRight,
   ChevronRight, Lock, Eye, CheckCircle, Globe, Star,
-  Activity, Clock, Wallet, BarChart2, Hash, ArrowUpRight
+  Activity, Clock, Wallet, BarChart2, Hash, ArrowUpRight,
+  MonitorSmartphone, UserPlus, Search, Sparkles, PlusCircle
 } from 'lucide-react';
 import './HomePage.css';
+
+const CountUp = ({ end, duration = 2000, decimals = 0 }) => {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let startTimestamp = null;
+    let animationFrame;
+    const numericEnd = Number(end) || 0; // fallback if NaN
+
+    if (numericEnd === 0) {
+      setCount(0);
+      return;
+    }
+
+    const step = (timestamp) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      // easeOutExpo for smooth deceleration
+      const easeOut = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+      setCount(easeOut * numericEnd);
+
+      if (progress < 1) {
+        animationFrame = window.requestAnimationFrame(step);
+      } else {
+        setCount(numericEnd);
+      }
+    };
+
+    animationFrame = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [end, duration]);
+
+  return <>{count.toFixed(decimals)}</>;
+};
 
 const FEATURES = [
   {
@@ -38,10 +73,38 @@ const FEATURES = [
 ];
 
 const HOW_IT_WORKS = [
-  { step: '01', title: 'Hubungkan Wallet', desc: 'Sambungkan MetaMask ke platform ChainDonate' },
-  { step: '02', title: 'Daftar Akun', desc: 'Registrasi sebagai donatur atau penerima donasi' },
-  { step: '03', title: 'Pilih Kampanye', desc: 'Temukan kampanye yang ingin Anda dukung' },
-  { step: '04', title: 'Donasi & Verifikasi', desc: 'Kirim donasi — smart contract otomatis mencatat di blockchain' },
+  {
+    step: '01',
+    icon: MonitorSmartphone,
+    title: 'Hubungkan Wallet',
+    desc: 'Sambungkan MetaMask ke platform ChainDonate. Proses cepat dan aman.',
+    color: 'primary',
+    accent: '#818cf8',
+  },
+  {
+    step: '02',
+    icon: UserPlus,
+    title: 'Daftar Akun',
+    desc: 'Registrasi sebagai donatur atau penerima donasi dengan identitas terverifikasi.',
+    color: 'accent',
+    accent: '#22d3ee',
+  },
+  {
+    step: '03',
+    icon: Search,
+    title: 'Pilih Kampanye',
+    desc: 'Temukan kampanye yang ingin Anda dukung dari berbagai kategori.',
+    color: 'success',
+    accent: '#34d399',
+  },
+  {
+    step: '04',
+    icon: CheckCircle,
+    title: 'Donasi & Verifikasi',
+    desc: 'Kirim donasi — smart contract otomatis mencatat di blockchain secara permanen.',
+    color: 'warning',
+    accent: '#fbbf24',
+  },
 ];
 
 function timeAgo(timestampSeconds) {
@@ -53,7 +116,7 @@ function timeAgo(timestampSeconds) {
 }
 
 export default function HomePage() {
-  const { contract, isConnected } = useWeb3();
+  const { readOnlyContract, isConnected } = useWeb3();
   const [stats, setStats] = useState(null);
   const [campaigns, setCampaigns] = useState([]);
   const [recentDonations, setRecentDonations] = useState([]);
@@ -64,12 +127,12 @@ export default function HomePage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!contract) { setLoading(false); return; }
+      if (!readOnlyContract) { setLoading(false); return; }
       try {
         const [platformStats, allCamps, donations] = await Promise.all([
-          contract.getPlatformStats(),
-          contract.getAllCampaigns(),
-          contract.getAllDonations(),
+          readOnlyContract.getPlatformStats(),
+          readOnlyContract.getAllCampaigns(),
+          readOnlyContract.getAllDonations(),
         ]);
 
         setStats({
@@ -96,7 +159,7 @@ export default function HomePage() {
       }
     };
     fetchData();
-  }, [contract]);
+  }, [readOnlyContract]);
 
   // Scroll feed slowly on hover off
   useEffect(() => {
@@ -134,7 +197,7 @@ export default function HomePage() {
 
         <div className="container hero-container">
           {/* Left — Copy */}
-          <div className="hero-content">
+          <div className="hero-content hero-content-centered">
             <div className="hero-tag animate-fade-in">
               <div className="hero-tag-dot" />
               Berbasis Teknologi Blockchain Ethereum
@@ -150,14 +213,13 @@ export default function HomePage() {
               Platform donasi berbasis{' '}
               <strong className="highlight-text">blockchain Ethereum</strong> dengan{' '}
               <strong className="highlight-text">smart contract Solidity</strong>{' '}
-              — setiap donasi tercatat abadi, transparan, dan dapat dilacak siapa pun.
+              — setiap donasi tercatat permanen, transparan, dan dapat dilacak siapa pun.
             </p>
 
             <div className="hero-actions animate-fade-in">
               <Link to="/campaigns" className="btn-hero-primary">
                 <Heart size={18} />
                 Mulai Donasi
-                <ArrowRight size={16} />
               </Link>
               <Link to="/transparency" className="btn-hero-secondary">
                 <Eye size={18} />
@@ -165,124 +227,21 @@ export default function HomePage() {
               </Link>
             </div>
 
-            {/* Mini stats row */}
-            <div className="hero-mini-stats animate-fade-in">
-              {[
-                { label: 'Kampanye Aktif', value: stats ? stats.activeCampaigns : '—' },
-                { label: 'Total Donasi', value: stats ? stats.totalDonations : '—' },
-                { label: 'ETH Terkumpul', value: stats ? stats.totalFundsRaised : '—' },
-              ].map(({ label, value }) => (
-                <div key={label} className="mini-stat">
-                  <span className="mini-stat-value">{value}</span>
-                  <span className="mini-stat-label">{label}</span>
-                </div>
-              ))}
-            </div>
+
 
             {!isConnected && (
-              <div className="hero-wallet-notice">
-                <Zap size={14} />
-                Hubungkan MetaMask Anda untuk mulai berdonasi
+              <div className="hero-wallet-prompt animate-fade-in" style={{ animationDelay: '0.5s' }}>
+                <div className="wallet-prompt-glow"></div>
+                <div className="wallet-prompt-content">
+                  <div className="wallet-prompt-icon">
+                    <Wallet size={16} />
+                  </div>
+                  <span className="wallet-prompt-text">
+                    Hubungkan Wallet Anda Untuk Mulai Berdonasi
+                  </span>
+                </div>
               </div>
             )}
-          </div>
-
-          {/* Right — Live Dashboard */}
-          <div className="hero-dashboard animate-fade-in">
-            {/* Header bar */}
-            <div className="hdash-header">
-              <div className="hdash-live-dot" />
-              <span className="hdash-live-label">Live Blockchain Feed</span>
-              <div className="hdash-network">
-                <div className="hdash-net-dot" />
-                Hardhat Network
-              </div>
-            </div>
-
-            {/* 4-stat grid */}
-            <div className="hdash-stats-grid">
-              {[
-                { label: 'Kampanye', value: stats?.totalCampaigns ?? '—', color: '#818cf8' },
-                { label: 'Transaksi', value: stats?.totalDonations ?? '—', color: '#34d399' },
-                { label: 'ETH Raised', value: stats ? `${stats.totalFundsRaised}` : '—', color: '#22d3ee' },
-                { label: 'Aktif', value: stats?.activeCampaigns ?? '—', color: '#fbbf24' },
-              ].map(({ label, value, color }) => (
-                <div key={label} className="hdash-stat" style={{ '--hc': color }}>
-                  <div className="hdash-stat-value" style={{ color }}>{value}</div>
-                  <div className="hdash-stat-label">{label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Live Donation Feed */}
-            <div className="hdash-feed-wrap">
-              <div className="hdash-feed-title">
-                <Activity size={14} />
-                Riwayat Donasi Terbaru
-                {liveCount > 0 && (
-                  <span className="hdash-feed-count">{liveCount} total</span>
-                )}
-              </div>
-
-              {!isConnected ? (
-                <div className="hdash-feed-empty">
-                  <Wallet size={28} />
-                  <p>Hubungkan wallet untuk melihat feed donasi real-time</p>
-                </div>
-              ) : loading ? (
-                <div className="hdash-feed-loading">
-                  {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="skeleton hdash-skeleton" />
-                  ))}
-                </div>
-              ) : recentDonations.length === 0 ? (
-                <div className="hdash-feed-empty">
-                  <Heart size={28} />
-                  <p>Belum ada donasi. Jadilah yang pertama!</p>
-                </div>
-              ) : (
-                <div className="hdash-feed" ref={feedRef}>
-                  {/* Duplicate for seamless loop */}
-                  {[...recentDonations, ...recentDonations].map((d, i) => {
-                    const eth = parseFloat(formatEther(d.amount)).toFixed(4);
-                    const initial = (d.donorName || '?').charAt(0).toUpperCase();
-                    const title = getCampaignTitle(d.campaignId);
-                    return (
-                      <div key={i} className="hdash-feed-item">
-                        <div className="hdash-feed-avatar">{initial}</div>
-                        <div className="hdash-feed-body">
-                          <div className="hdash-feed-row">
-                            <span className="hdash-feed-name">{d.donorName || 'Anonim'}</span>
-                            <span className="hdash-feed-amount">+{eth} ETH</span>
-                          </div>
-                          <div className="hdash-feed-campaign">
-                            <Hash size={10} />
-                            <span className="hdash-feed-camp-title">{title}</span>
-                          </div>
-                          <div className="hdash-feed-meta">
-                            <Clock size={10} />
-                            <span>{timeAgo(d.timestamp)}</span>
-                            {d.message && (
-                              <>
-                                <span className="hdash-dot">·</span>
-                                <span className="hdash-feed-msg">"{d.message}"</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Footer link */}
-            <Link to="/transparency" className="hdash-footer-link">
-              <BarChart2 size={14} />
-              Lihat semua transaksi di halaman Transparansi
-              <ArrowUpRight size={13} />
-            </Link>
           </div>
         </div>
       </section>
@@ -290,21 +249,20 @@ export default function HomePage() {
       {/* ===== STATS SECTION ===== */}
       <section className="stats-section">
         <div className="container">
-          <div className="stats-grid">
+          <div className="stats-glass-panel">
             {[
-              { label: 'Total Kampanye', value: stats?.totalCampaigns ?? '—', icon: Globe, color: '#818cf8' },
-              { label: 'Total Donasi', value: stats?.totalDonations ?? '—', icon: Heart, color: '#34d399' },
-              { label: 'ETH Terkumpul', value: stats ? `${stats.totalFundsRaised} ETH` : '—', icon: TrendingUp, color: '#22d3ee' },
-              { label: 'Kampanye Aktif', value: stats?.activeCampaigns ?? '—', icon: Star, color: '#fbbf24' },
-            ].map(({ label, value, icon: Icon, color }) => (
-              <div key={label} className="stat-card glass-card">
-                <div className="stat-card-icon" style={{ background: `${color}22`, border: `1px solid ${color}44` }}>
-                  <Icon size={22} style={{ color }} />
+              { label: 'Total Kampanye', value: stats?.totalCampaigns ?? 0, color: 'var(--primary-400)', decimals: 0 },
+              { label: 'Total Donasi', value: stats?.totalDonations ?? 0, color: 'var(--success-400)', decimals: 0 },
+              { label: 'ETH Terkumpul', value: stats ? stats.totalFundsRaised : 0, color: 'var(--accent-400)', isEth: true, decimals: 4 },
+              { label: 'Kampanye Aktif', value: stats?.activeCampaigns ?? 0, color: 'var(--warning-400)', decimals: 0 },
+            ].map(({ label, value, color, isEth, decimals }, index) => (
+              <div key={label} className="panel-stat-item animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
+                <div className="panel-stat-value" style={{ color }}>
+                  {stats ? <CountUp end={value} decimals={decimals} /> : '—'}
+                  {isEth && stats && <span className="panel-stat-suffix" style={{ marginLeft: 6 }}>ETH</span>}
                 </div>
-                <div>
-                  <p className="stat-card-value">{value}</p>
-                  <p className="stat-card-label">{label}</p>
-                </div>
+                <div className="panel-stat-label">{label}</div>
+                {index < 3 && <div className="panel-stat-divider" />}
               </div>
             ))}
           </div>
@@ -342,14 +300,24 @@ export default function HomePage() {
           <div className="section-header">
             <span className="section-tag">Cara Kerja</span>
             <h2 className="section-title">Mulai Donasi dalam <span className="gradient-text">4 Langkah</span></h2>
+            <p className="section-desc">Proses yang sederhana, transparan, dan aman berbasis teknologi blockchain.</p>
           </div>
-          <div className="how-grid">
-            {HOW_IT_WORKS.map(({ step, title, desc }, i) => (
-              <div key={step} className="how-item">
-                <div className="how-step">{step}</div>
-                <div className="how-line" style={{ opacity: i < HOW_IT_WORKS.length - 1 ? 1 : 0 }} />
-                <h3 className="how-title">{title}</h3>
-                <p className="how-desc">{desc}</p>
+
+          <div className="how-steps">
+            {/* Connector line between cards (desktop only) */}
+            <div className="how-steps-line" />
+
+            {HOW_IT_WORKS.map(({ step, icon: Icon, title, desc, accent }) => (
+              <div key={step} className="how-step-card" style={{ '--how-accent': accent }}>
+                <div className="how-step-badge">
+                  <Icon size={22} />
+                  <div className="how-step-badge-glow" />
+                </div>
+                <div className="how-step-text">
+                  <div className="how-step-num">{step}</div>
+                  <h3 className="how-step-title">{title}</h3>
+                  <p className="how-step-desc">{desc}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -362,20 +330,14 @@ export default function HomePage() {
           <div className="section-header-row">
             <div>
               <span className="section-tag">Kampanye Terpopuler</span>
-              <h2 className="section-title">Dukung <span className="gradient-text">Kampanye Nyata</span></h2>
+              <h2 className="section-title">Dukung <span className="gradient-text">Kampanye</span></h2>
             </div>
             <Link to="/campaigns" className="view-all-btn">
               Lihat Semua <ChevronRight size={16} />
             </Link>
           </div>
 
-          {!isConnected ? (
-            <div className="connect-notice">
-              <Zap size={32} className="connect-notice-icon" />
-              <h3>Hubungkan Wallet untuk Melihat Kampanye</h3>
-              <p>Anda perlu menghubungkan MetaMask untuk mengakses data kampanye dari blockchain.</p>
-            </div>
-          ) : loading ? (
+          {loading ? (
             <div className="campaigns-skeleton-grid">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="skeleton" style={{ height: 360 }} />
@@ -412,7 +374,7 @@ export default function HomePage() {
                 Mulai Berdonasi
               </Link>
               <Link to="/create" className="btn-hero-secondary">
-                <Zap size={18} />
+                <PlusCircle size={18} />
                 Buat Kampanye
               </Link>
             </div>

@@ -38,8 +38,8 @@
       ]
     },
     "E:\\hardhat\\blockchain\\contracts\\DonationSystem.sol": {
-      "lastModificationDate": 1774790986884,
-      "contentHash": "b6387c03b489efe972a05503270786c4",
+      "lastModificationDate": 1774942640182,
+      "contentHash": "7a43c3967a85cf5fba38af88bc1f5e04",
       "sourceName": "contracts/DonationSystem.sol",
       "solcConfig": {
         "version": "0.8.24",
