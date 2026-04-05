@@ -41,7 +41,6 @@ export default function Navbar() {
           <span className="logo-text">
             Chain<span className="logo-accent">Donate</span>
           </span>
-          <span className="logo-badge">Blockchain</span>
         </Link>
 
         {/* Desktop Nav */}

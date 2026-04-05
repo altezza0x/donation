@@ -47,28 +47,24 @@ const CountUp = ({ end, duration = 2000, decimals = 0 }) => {
 
 const FEATURES = [
   {
-    icon: Shield,
     title: 'Transparan 100%',
     desc: 'Setiap transaksi tercatat permanen di blockchain Ethereum. Tidak ada yang bisa disembunyikan atau dimanipulasi.',
-    color: 'primary',
+    accent: '#818cf8',
   },
   {
-    icon: Zap,
     title: 'Smart Contract',
     desc: 'Dana dikelola otomatis oleh smart contract Solidity. Tidak ada perantara yang menyentuh uang Anda.',
-    color: 'accent',
+    accent: '#22d3ee',
   },
   {
-    icon: Eye,
     title: 'Lacak Real-time',
     desc: 'Pantau alur dana Anda secara real-time. Dari dompet Anda hingga tangan penerima.',
-    color: 'success',
+    accent: '#34d399',
   },
   {
-    icon: Lock,
     title: 'Immutable & Aman',
     desc: 'Transaksi blockchain tidak dapat diubah atau dihapus. Catatan donasi Anda abadi selamanya.',
-    color: 'warning',
+    accent: '#fbbf24',
   },
 ];
 
@@ -204,7 +200,7 @@ export default function HomePage() {
             </div>
 
             <h1 className="hero-title animate-fade-in">
-              Donasi Digital yang{' '}
+              Donasi Digital Yang <br className="hidden-mobile" />
               <span className="gradient-text">Transparan</span>{' '}
               &amp; <span className="gradient-text">Terpercaya</span>
             </h1>
@@ -281,13 +277,12 @@ export default function HomePage() {
             </p>
           </div>
           <div className="features-grid">
-            {FEATURES.map(({ icon: Icon, title, desc, color }) => (
-              <div key={title} className={`feature-card feature-${color}`}>
-                <div className="feature-icon-wrap">
-                  <Icon size={24} />
+            {FEATURES.map(({ title, desc, accent }) => (
+              <div key={title} className="feature-card" style={{ '--feat-accent': accent }}>
+                <div className="feature-body">
+                  <h3 className="feature-title">{title}</h3>
+                  <p className="feature-desc">{desc}</p>
                 </div>
-                <h3 className="feature-title">{title}</h3>
-                <p className="feature-desc">{desc}</p>
               </div>
             ))}
           </div>

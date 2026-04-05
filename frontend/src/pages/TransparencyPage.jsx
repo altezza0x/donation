@@ -4,7 +4,7 @@ import { formatEther } from 'viem';
 import {
   BarChart3, TrendingUp, Users, Heart, Globe, Shield,
   ExternalLink, Copy, RefreshCw, Search, Clock, CheckCircle,
-  Wallet, ArrowUpRight, X, Hash, ChevronLeft, ChevronRight
+  Wallet, ArrowUpRight, X, Hash, ChevronLeft, ChevronRight, User, LayoutGrid
 } from 'lucide-react';
 import './TransparencyPage.css';
 
@@ -91,11 +91,19 @@ export default function TransparencyPage() {
   const [searchTx, setSearchTx] = useState('');
   const [tab, setTab] = useState('donations'); // 'donations' | 'campaigns' | 'withdrawals'
   const [selectedDonation, setSelectedDonation] = useState(null);
+  const [selectedCampaign, setSelectedCampaign] = useState(null);
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState(null);
   const [copiedHash, setCopiedHash] = useState('');
 
   const fetchData = async (showRefresh = false) => {
     if (!readOnlyContract) { setLoading(false); return; }
-    if (showRefresh) setRefreshing(true);
+
+    let startTime;
+    if (showRefresh) {
+      setRefreshing(true);
+      startTime = Date.now();
+    }
+
     try {
       const [platformStats, donations, campaigns, withdrawalsList] = await Promise.all([
         readOnlyContract.getPlatformStats(),
@@ -117,6 +125,12 @@ export default function TransparencyPage() {
     } catch (err) {
       console.error('Error fetching transparency data:', err);
     } finally {
+      if (showRefresh) {
+        const elapsed = Date.now() - startTime;
+        if (elapsed < 800) {
+          await new Promise(res => setTimeout(res, 800 - elapsed));
+        }
+      }
       setLoading(false);
       setRefreshing(false);
     }
@@ -402,7 +416,7 @@ export default function TransparencyPage() {
                         const progress = Math.min((raised / target) * 100, 100);
                         const isExpired = Number(c.deadline) * 1000 < Date.now();
                         return (
-                          <tr key={i} className="trans-row">
+                          <tr key={i} className="trans-row clickable" onClick={() => setSelectedCampaign(c)}>
                             <td><span className="tx-id">#{c.id.toString()}</span></td>
                             <td>
                               <div className="campaign-title-cell">
@@ -413,7 +427,7 @@ export default function TransparencyPage() {
                             <td>
                               <div className="addr-cell">
                                 <span className="addr monospace">{c.owner.slice(0, 6)}...{c.owner.slice(-4)}</span>
-                                <button className="copy-tiny" onClick={() => copyText(c.owner, `cowner-${i}`)}>
+                                <button className="copy-tiny" onClick={(e) => { e.stopPropagation(); copyText(c.owner, `cowner-${i}`); }}>
                                   {copiedHash === `cowner-${i}` ? <CheckCircle size={10} style={{ color: 'var(--success-400)' }} /> : <Copy size={10} />}
                                 </button>
                               </div>
@@ -478,7 +492,7 @@ export default function TransparencyPage() {
                       ) : withdrawalPg.paged.map((w, i) => {
                         const txHash = formatHash(w.txHash);
                         return (
-                          <tr key={i} className="trans-row">
+                          <tr key={i} className="trans-row clickable" onClick={() => setSelectedWithdrawal(w)}>
                             <td><span className="id-badge">#{w.id.toString()}</span></td>
                             <td>
                               <div className="withdrawal-campaign">
@@ -491,7 +505,7 @@ export default function TransparencyPage() {
                             <td>
                               <div className="wallet-cell">
                                 <span className="addr monospace">{w.recipient.slice(0, 6)}...{w.recipient.slice(-4)}</span>
-                                <button className="copy-tiny" onClick={() => copyText(w.recipient, `wrecp-${i}`)}>
+                                <button className="copy-tiny" onClick={(e) => { e.stopPropagation(); copyText(w.recipient, `wrecp-${i}`); }}>
                                   {copiedHash === `wrecp-${i}` ? <CheckCircle size={10} style={{ color: 'var(--success-400)' }} /> : <Copy size={10} />}
                                 </button>
                               </div>
@@ -514,7 +528,7 @@ export default function TransparencyPage() {
                                 })}
                               </span>
                             </td>
-                            <td>
+                            <td onClick={(e) => e.stopPropagation()}>
                               {txHash ? (
                                 <div className="hash-cell">
                                   <Hash size={10} className="hash-icon" />
@@ -561,45 +575,54 @@ export default function TransparencyPage() {
             </div>
 
             <div className="trans-modal-body">
-              <div className="trans-detail-grid">
-                <span className="trans-detail-label">Donatur</span>
-                <span className="trans-detail-value">{selectedDonation.donorName || 'Anonim'}</span>
-
-                <span className="trans-detail-label">Wallet Address</span>
-                <div className="addr-cell">
-                  <span className="trans-detail-value monospace" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                    {selectedDonation.donor}
-                  </span>
-                  <button className="copy-tiny" onClick={() => copyText(selectedDonation.donor, 'modal-addr')} title="Salin address">
-                    {copiedHash === 'modal-addr' ? <CheckCircle size={12} style={{ color: 'var(--success-400)' }} /> : <Copy size={12} />}
-                  </button>
+              <div className="trans-detail-list">
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Donatur</span>
+                  <span className="trans-detail-value">{selectedDonation.donorName || 'Anonim'}</span>
                 </div>
 
-                <span className="trans-detail-label">Kampanye</span>
-                <span className="trans-detail-value">
-                  {allCampaigns.find(c => c.id.toString() === selectedDonation.campaignId.toString())?.title || `Kampanye #${selectedDonation.campaignId.toString()}`}
-                </span>
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Wallet Address</span>
+                  <div className="modal-addr-row">
+                    <span className="trans-detail-value monospace modal-addr-text">
+                      {selectedDonation.donor}
+                    </span>
+                    <button className="copy-tiny" onClick={() => copyText(selectedDonation.donor, 'modal-addr')} title="Salin address">
+                      {copiedHash === 'modal-addr' ? <CheckCircle size={12} style={{ color: 'var(--success-400)' }} /> : <Copy size={12} />}
+                    </button>
+                  </div>
+                </div>
 
-                <span className="trans-detail-label">Jumlah Donasi</span>
-                <span className="trans-detail-value" style={{ color: 'var(--success-400)' }}>
-                  {Number(formatEther(selectedDonation.amount)).toFixed(4)} ETH
-                </span>
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Kampanye</span>
+                  <span className="trans-detail-value">
+                    {allCampaigns.find(c => c.id.toString() === selectedDonation.campaignId.toString())?.title || `Kampanye #${selectedDonation.campaignId.toString()}`}
+                  </span>
+                </div>
 
-                <span className="trans-detail-label">Waktu Transaksi</span>
-                <span className="trans-detail-value" style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>
-                  {new Date(Number(selectedDonation.timestamp) * 1000).toLocaleString('id-ID', {
-                    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit', second: '2-digit'
-                  })}
-                </span>
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Jumlah Donasi</span>
+                  <span className="trans-detail-value" style={{ color: 'var(--success-400)' }}>
+                    {Number(formatEther(selectedDonation.amount)).toFixed(4)} ETH
+                  </span>
+                </div>
+
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Waktu Transaksi</span>
+                  <span className="trans-detail-value" style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>
+                    {new Date(Number(selectedDonation.timestamp) * 1000).toLocaleString('id-ID', {
+                      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+                      hour: '2-digit', minute: '2-digit', second: '2-digit'
+                    })}
+                  </span>
+                </div>
 
                 {/* Tx Hash */}
                 {formatHash(selectedDonation.txHash) && (
-                  <>
+                  <div className="trans-detail-row">
                     <span className="trans-detail-label">Tx Hash</span>
-                    <div className="addr-cell">
+                    <div className="modal-addr-row">
                       <div className="modal-hash-box">
-                        <Hash size={11} style={{ color: 'var(--primary-400)', flexShrink: 0 }} />
                         <span className="monospace modal-hash-text" title={formatHash(selectedDonation.txHash)}>
                           {formatHash(selectedDonation.txHash)}
                         </span>
@@ -613,18 +636,192 @@ export default function TransparencyPage() {
                         {copiedHash === 'modal-hash' ? <CheckCircle size={12} style={{ color: 'var(--success-400)' }} /> : <Copy size={12} />}
                       </button>
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
 
               <div className="trans-detail-msg-box">
-                {selectedDonation.message ? (
-                  <p className="trans-detail-msg-text">{selectedDonation.message}</p>
-                ) : (
-                  <p className="trans-detail-msg-text" style={{ opacity: 0.5, fontStyle: 'italic' }}>
-                    Tanpa pesan dari donatur.
-                  </p>
+                <span className="trans-detail-msg-label">Pesan Donatur:</span>
+                <div className="trans-detail-msg-content">
+                  {selectedDonation.message ? (
+                    <span className="trans-detail-msg-text">{selectedDonation.message}</span>
+                  ) : (
+                    <span className="trans-detail-msg-text" style={{ opacity: 0.5, fontStyle: 'italic' }}>
+                      [Tidak ada pesan tambahan]
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Campaign Detail Modal */}
+      {selectedCampaign && (
+        <div className="trans-modal-overlay" onClick={() => setSelectedCampaign(null)}>
+          <div className="trans-modal-content glass-card" onClick={e => e.stopPropagation()}>
+            <div className="trans-modal-header">
+              <h3>
+                <LayoutGrid size={16} className="text-primary-400" />
+                Detail Kampanye #{selectedCampaign.id.toString()}
+              </h3>
+              <button className="trans-modal-close" onClick={() => setSelectedCampaign(null)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="trans-modal-body">
+              <div className="trans-detail-list">
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Judul Kampanye</span>
+                  <span className="trans-detail-value">{selectedCampaign.title}</span>
+                </div>
+
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Kategori</span>
+                  <span className="trans-detail-value">{selectedCampaign.category}</span>
+                </div>
+
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Kreator (Owner)</span>
+                  <div className="modal-addr-row">
+                    <span className="trans-detail-value monospace modal-addr-text">
+                      {selectedCampaign.owner}
+                    </span>
+                    <button className="copy-tiny" onClick={() => copyText(selectedCampaign.owner, 'modal-camp-owner')} title="Salin address">
+                      {copiedHash === 'modal-camp-owner' ? <CheckCircle size={12} style={{ color: 'var(--success-400)' }} /> : <Copy size={12} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Target Dana</span>
+                  <span className="trans-detail-value">{Number(formatEther(selectedCampaign.targetAmount)).toFixed(4)} ETH</span>
+                </div>
+
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Terkumpul</span>
+                  <span className="trans-detail-value" style={{ color: 'var(--success-400)' }}>
+                    {Number(formatEther(selectedCampaign.raisedAmount)).toFixed(4)} ETH
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
+                      ({Math.min((Number(formatEther(selectedCampaign.raisedAmount)) / Number(formatEther(selectedCampaign.targetAmount))) * 100, 100).toFixed(1)}%)
+                    </span>
+                  </span>
+                </div>
+
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Total Donatur</span>
+                  <span className="trans-detail-value">{Number(selectedCampaign.donorCount)} transaksi donasi aktif</span>
+                </div>
+
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Tenggat Waktu</span>
+                  <span className="trans-detail-value">
+                    {new Date(Number(selectedCampaign.deadline) * 1000).toLocaleString('id-ID', {
+                      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                    })}
+                    {Number(selectedCampaign.deadline) * 1000 < Date.now() ? ' (Berakhir)' : ''}
+                  </span>
+                </div>
+
+                <div className="trans-detail-row" style={{ borderBottom: 'none' }}>
+                  <span className="trans-detail-label">Status</span>
+                  <span className="trans-detail-value">
+                    <span className={`status-badge ${selectedCampaign.isActive && (Number(selectedCampaign.deadline) * 1000 > Date.now()) ? 'active' : 'inactive'}`}>
+                      {selectedCampaign.isWithdrawn ? 'Dana Telah Ditarik' : selectedCampaign.isActive && (Number(selectedCampaign.deadline) * 1000 > Date.now()) ? '● Kampanye Aktif' : 'Kampanye Selesai'}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Withdrawal Detail Modal */}
+      {selectedWithdrawal && (
+        <div className="trans-modal-overlay" onClick={() => setSelectedWithdrawal(null)}>
+          <div className="trans-modal-content glass-card" onClick={e => e.stopPropagation()}>
+            <div className="trans-modal-header">
+              <h3>
+                <ArrowUpRight size={16} className="text-warning-400" />
+                Detail Penarikan #{selectedWithdrawal.id.toString()}
+              </h3>
+              <button className="trans-modal-close" onClick={() => setSelectedWithdrawal(null)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="trans-modal-body">
+              <div className="trans-detail-list">
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Kampanye</span>
+                  <span className="trans-detail-value">{selectedWithdrawal.campaignTitle} (ID: #{selectedWithdrawal.campaignId.toString()})</span>
+                </div>
+
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Penerima Dana</span>
+                  <div className="modal-addr-row">
+                    <span className="trans-detail-value monospace modal-addr-text">
+                      {selectedWithdrawal.recipient}
+                    </span>
+                    <button className="copy-tiny" onClick={() => copyText(selectedWithdrawal.recipient, 'modal-with-recp')} title="Salin address">
+                      {copiedHash === 'modal-with-recp' ? <CheckCircle size={12} style={{ color: 'var(--success-400)' }} /> : <Copy size={12} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Jumlah Ditarik</span>
+                  <span className="trans-detail-value" style={{ color: 'var(--warning-400)' }}>
+                    {Number(formatEther(selectedWithdrawal.amount)).toFixed(4)} ETH
+                  </span>
+                </div>
+
+                <div className="trans-detail-row">
+                  <span className="trans-detail-label">Waktu Transaksi</span>
+                  <span className="trans-detail-value">
+                    {new Date(Number(selectedWithdrawal.timestamp) * 1000).toLocaleString('id-ID', {
+                      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
+                    })}
+                  </span>
+                </div>
+
+                {/* Tx Hash */}
+                {formatHash(selectedWithdrawal.txHash) && (
+                  <div className="trans-detail-row" style={{ borderBottom: 'none' }}>
+                    <span className="trans-detail-label">Tx Hash</span>
+                    <div className="modal-addr-row">
+                      <div className="modal-hash-box">
+                        <span className="monospace modal-hash-text" title={formatHash(selectedWithdrawal.txHash)}>
+                          {formatHash(selectedWithdrawal.txHash)}
+                        </span>
+                      </div>
+                      <button
+                        className="copy-tiny"
+                        onClick={() => copyText(formatHash(selectedWithdrawal.txHash), 'modal-with-hash')}
+                        title="Salin hash"
+                        style={{ flexShrink: 0 }}
+                      >
+                        {copiedHash === 'modal-with-hash' ? <CheckCircle size={12} style={{ color: 'var(--success-400)' }} /> : <Copy size={12} />}
+                      </button>
+                    </div>
+                  </div>
                 )}
+              </div>
+
+              <div className="trans-detail-msg-box">
+                <span className="trans-detail-msg-label">Tujuan Pencairan (Purpose):</span>
+                <div className="trans-detail-msg-content">
+                  {selectedWithdrawal.purpose ? (
+                    <span className="trans-detail-msg-text">{selectedWithdrawal.purpose}</span>
+                  ) : (
+                    <span className="trans-detail-msg-text" style={{ opacity: 0.5, fontStyle: 'italic' }}>
+                      [Tidak ada keterangan tujuan]
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>

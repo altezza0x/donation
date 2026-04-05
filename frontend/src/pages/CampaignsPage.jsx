@@ -106,7 +106,7 @@ export default function CampaignsPage() {
             <Search size={16} className="search-icon" />
             <input
               type="text"
-              placeholder="Cari kampanye..."
+              placeholder="Cari Kampanye..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="search-input"

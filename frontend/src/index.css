@@ -3,7 +3,7 @@
    =========================== */
 
 /* --- Google Fonts Import --- */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap');
 
 /* --- CSS Variables / Design Tokens --- */
 :root {
@@ -58,8 +58,8 @@
   --text-accent: #818cf8;
 
   /* Typography */
-  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --font-heading: 'Space Grotesk', system-ui, sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Poppins', system-ui, -apple-system, sans-serif;
 
   /* Shadows */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
