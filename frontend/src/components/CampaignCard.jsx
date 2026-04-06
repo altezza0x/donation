@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { formatEther } from 'viem';
+import { formatUsdc } from '../contracts/MockUSDC';
 import { TrendingUp, ArrowUpRight } from 'lucide-react';
 import './CampaignCard.css';
 
@@ -18,8 +18,8 @@ const CATEGORY_EMOJIS = {
 };
 
 export default function CampaignCard({ campaign }) {
-  const target   = Number(formatEther(campaign.targetAmount));
-  const raised   = Number(formatEther(campaign.raisedAmount));
+  const target   = formatUsdc(campaign.targetAmount);
+  const raised   = formatUsdc(campaign.raisedAmount);
   const progress = Math.min((raised / target) * 100, 100);
   const deadline = new Date(Number(campaign.deadline) * 1000);
   const daysLeft = Math.max(0, Math.ceil((deadline - Date.now()) / (1000 * 60 * 60 * 24)));
@@ -71,7 +71,7 @@ export default function CampaignCard({ campaign }) {
           <div className="progress-stats">
             <span className="progress-raised">
               <TrendingUp size={11} />
-              {raised.toFixed(4)} ETH terkumpul
+              {raised.toFixed(2)} USDC terkumpul
             </span>
             <span className="progress-pct">{progress.toFixed(1)}%</span>
           </div>
@@ -80,7 +80,7 @@ export default function CampaignCard({ campaign }) {
         {/* Stats */}
         <div className="campaign-stats">
           <div className="stat-item">
-            <p className="stat-value">{target.toFixed(3)} ETH</p>
+            <p className="stat-value">{target.toFixed(0)} USDC</p>
             <p className="stat-label">Target</p>
           </div>
           <div className="stat-item">

@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWeb3 } from '../context/Web3Context';
-import { formatEther, parseEther } from 'viem';
+import { parseUsdc, formatUsdc } from '../contracts/MockUSDC';
+import { CONTRACT_ADDRESS, DONATION_SYSTEM_ABI } from '../contracts/DonationSystem';
+import { decodeEventLog, parseAbiItem } from 'viem';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
+import { saveTxHash, getTxHash } from '../api';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, Clock, Users, Target, TrendingUp, CheckCircle,
@@ -13,12 +17,14 @@ import './CampaignDetailPage.css';
 export default function CampaignDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { contract, readOnlyContract, account, user, isConnected } = useWeb3();
+  const { contract, readOnlyContract, usdcContract, account, user, isConnected, usdcAddress, provider, networkId } = useWeb3();
 
   const [campaign, setCampaign] = useState(null);
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [donationLoading, setDonationLoading] = useState(false);
+  const [creationTxHash, setCreationTxHash] = useState(null);
+  const { openConnectModal } = useConnectModal();
 
   // Form state
   const [amount, setAmount] = useState('');
@@ -39,7 +45,12 @@ export default function CampaignDetailPage() {
   }, [readOnlyContract, id]);
 
   const fetchData = async () => {
-    if (!readOnlyContract || !id) { setLoading(false); return; }
+    if (!readOnlyContract || !id) {
+      if (!readOnlyContract) setLoading(true); // Masih nunggu provider
+      else setLoading(false);
+      return;
+    }
+    setLoading(true);
     try {
       const [camp, dons] = await Promise.all([
         readOnlyContract.getCampaign(BigInt(id)),
@@ -47,6 +58,38 @@ export default function CampaignDetailPage() {
       ]);
       setCampaign(camp);
       setDonations([...dons].reverse());
+
+      // Coba ambil dari localStorage (cache) dulu
+      const cachedHash = localStorage.getItem(`camp-tx-${id}`);
+      if (cachedHash) {
+        setCreationTxHash(cachedHash);
+      } else {
+        // Coba dari MongoDB (berfungsi di semua perangkat)
+        const dbHash = await getTxHash('campaign', id);
+        if (dbHash) {
+          setCreationTxHash(dbHash);
+          localStorage.setItem(`camp-tx-${id}`, dbHash); // cache lokal
+        } else if (provider) {
+          // Last resort: query blockchain langsung dari blok 0
+          try {
+            const logs = await provider.getLogs({
+              address: CONTRACT_ADDRESS,
+              event: parseAbiItem('event CampaignCreated(uint256 indexed campaignId, address indexed owner, string title, uint256 targetAmount, uint256 deadline)'),
+              args: { campaignId: BigInt(id) },
+              fromBlock: 0n,
+            }).catch(() => []);
+
+            if (logs && logs.length > 0) {
+              const hash = logs[0].transactionHash;
+              setCreationTxHash(hash);
+              localStorage.setItem(`camp-tx-${id}`, hash);
+              saveTxHash('campaign', id, hash); // simpan ke MongoDB
+            }
+          } catch (e) {
+            console.warn('Gagal mengambil tx hash pembuatan kampanye:', e);
+          }
+        }
+      }
     } catch (err) {
       console.error('Error fetching campaign detail:', err);
       toast.error('Kampanye tidak ditemukan');
@@ -63,51 +106,86 @@ export default function CampaignDetailPage() {
     if (!amount || parseFloat(amount) <= 0) { toast.error('Masukkan jumlah donasi yang valid'); return; }
 
     setDonationLoading(true);
-    const toastId = toast.loading('Memproses transaksi di blockchain...');
+    const toastId = toast.loading('Menyetujui penggunaan USDC...');
 
     try {
-      const amountWei = parseEther(amount);
+      const amountUsdc = parseUsdc(amount);
       const name = isAnon ? 'Anonim' : (user?.name || 'Anonim');
 
-      const tx = await contract.donate(BigInt(id), name, message, { value: amountWei });
+      // Step 1: Approve USDC ke DonationSystem contract
+      const approveTx = await usdcContract.approve(CONTRACT_ADDRESS, amountUsdc);
+      toast.loading('Menunggu konfirmasi approve...', { id: toastId });
+      await approveTx.wait();
+
+      // Step 2: Donate
+      toast.loading('Memproses donasi di blockchain...', { id: toastId });
+      const tx = await contract.donate(BigInt(id), name, message, amountUsdc);
       toast.loading('Menunggu konfirmasi blockchain...', { id: toastId });
 
-      await tx.wait();
-      toast.success(
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: '220px' }}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '14px' }}>Donasi Sukses!</span>
-            <span style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-              Berhasil mengirim <strong style={{ color: '#10b981' }}>{amount} ETH</strong>.
-            </span>
-            <div style={{ marginTop: '4px' }}>
-              <a
-                href={`https://sepolia.etherscan.io/tx/${tx.hash}`}
-                target="_blank" rel="noopener noreferrer"
-                style={{
-                  fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px',
-                  color: '#818cf8', textDecoration: 'none', background: 'rgba(99, 102, 241, 0.1)',
-                  padding: '4px 8px', borderRadius: '4px'
-                }}
-              >
-                Detail <ExternalLink size={10} />
-              </a>
+      const receipt = await tx.wait();
+
+      // Simpan hash asli ke local storage agar terbaca di Transparansi
+      try {
+        if (receipt && receipt.logs) {
+          for (const log of receipt.logs) {
+            try {
+              const decoded = decodeEventLog({
+                abi: DONATION_SYSTEM_ABI,
+                data: log.data,
+                topics: log.topics,
+              });
+              if (decoded.eventName === 'DonationMade') {
+                const donationId = decoded.args.donationId.toString();
+                localStorage.setItem(`don-tx-${donationId}`, tx.hash);
+                // Simpan ke MongoDB agar bisa dibaca dari semua perangkat
+                saveTxHash('donation', donationId, tx.hash);
+              }
+            } catch (e) {
+              // Ignore logs that belong to other contracts (like USDC)
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Gagal parse logs", e);
+      }
+
+      toast.custom((t) => (
+        <div style={{
+          opacity: t.visible ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+          transform: t.visible ? 'translateY(0) scale(1)' : 'translateY(-20px) scale(0.95)',
+          background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid rgba(16, 185, 129, 0.3)',
+          borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px',
+          boxShadow: '0 20px 40px -10px rgba(16, 185, 129, 0.15)', minWidth: '300px', pointerEvents: 'auto'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ background: 'rgba(16, 185, 129, 0.15)', padding: '8px', borderRadius: '12px', display: 'flex' }}>
+              <CheckCircle size={22} style={{ color: '#34d399' }} />
             </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Donasi Berhasil!</h4>
+              <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', marginTop: '2px' }}>Transaksi dikonfirmasi on-chain</p>
+            </div>
+            <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: '50%' }}>
+              <X size={16} />
+            </button>
           </div>
-          <button
-            onClick={() => toast.dismiss(toastId)}
+          <div style={{ background: 'rgba(0, 0, 0, 0.2)', borderRadius: '10px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ color: '#cbd5e1', fontSize: '13px' }}>Jumlah Dikirim</span>
+            <strong style={{ color: '#10b981', fontSize: '15px' }}>{amount} USDC</strong>
+          </div>
+          <a
+            href={`https://sepolia.etherscan.io/tx/${tx.hash}`}
+            target="_blank" rel="noopener noreferrer"
             style={{
-              background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer',
-              padding: '4px', borderRadius: '6px', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', marginTop: '-2px', marginRight: '-6px'
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', textDecoration: 'none',
+              padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 500, transition: 'background 0.2s'
             }}
-            title="Tutup"
           >
-            <X size={14} />
-          </button>
-        </div>,
-        { id: toastId, duration: 8000 }
-      );
+            Detail <ExternalLink size={14} />
+          </a>
+        </div>
+      ), { id: toastId, duration: 8000 });
 
       setAmount('');
       setMessage('');
@@ -115,28 +193,31 @@ export default function CampaignDetailPage() {
     } catch (err) {
       const msg = err.reason || err.message || 'Transaksi gagal';
       const safeMsg = msg.length > 80 ? msg.slice(0, 80) + '...' : msg;
-      toast.error(
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: '220px' }}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '14px' }}>Donasi Gagal</span>
-            <span style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-              {safeMsg}
-            </span>
+      toast.custom((t) => (
+        <div style={{
+          opacity: t.visible ? 1 : 0, transition: 'transform 0.3s ease, opacity 0.3s ease',
+          transform: t.visible ? 'scale(1)' : 'scale(0.95)',
+          background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid rgba(239, 68, 68, 0.3)',
+          borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px',
+          boxShadow: '0 20px 40px -10px rgba(239, 68, 68, 0.15)', minWidth: '300px', pointerEvents: 'auto'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.15)', padding: '8px', borderRadius: '12px', display: 'flex' }}>
+              <AlertTriangle size={22} style={{ color: '#f87171' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Donasi Gagal</h4>
+              <p style={{ margin: 0, fontSize: '13px', color: '#f87171', marginTop: '2px' }}>Reverted by blockchain</p>
+            </div>
+            <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: '50%' }}>
+              <X size={16} />
+            </button>
           </div>
-          <button
-            onClick={() => toast.dismiss(toastId)}
-            style={{
-              background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer',
-              padding: '4px', borderRadius: '6px', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', marginTop: '-2px', marginRight: '-6px'
-            }}
-            title="Tutup"
-          >
-            <X size={14} />
-          </button>
-        </div>,
-        { id: toastId, duration: 8000 }
-      );
+          <div style={{ background: 'rgba(0, 0, 0, 0.2)', borderRadius: '10px', padding: '12px', borderLeft: '3px solid #ef4444' }}>
+            <span style={{ color: '#cbd5e1', fontSize: '13px', lineHeight: '1.4' }}>{safeMsg}</span>
+          </div>
+        </div>
+      ), { id: toastId, duration: 8000 });
       console.error(err);
     } finally {
       setDonationLoading(false);
@@ -161,70 +242,102 @@ export default function CampaignDetailPage() {
     const toastId = toast.loading('Memproses penarikan...');
     try {
       const tx = await contract.withdrawFunds(BigInt(id), withdrawPurpose);
-      await tx.wait();
-      toast.success(
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: '220px' }}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '14px' }}>Penarikan Sukses!</span>
-            <span style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-              Dana telah dicairkan ke <strong style={{ color: '#10b981' }}>Wallet Anda</strong>.
-            </span>
-            <div style={{ marginTop: '4px' }}>
-              <a
-                href={`https://sepolia.etherscan.io/tx/${tx.hash}`}
-                target="_blank" rel="noopener noreferrer"
-                style={{
-                  fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px',
-                  color: '#818cf8', textDecoration: 'none', background: 'rgba(99, 102, 241, 0.1)',
-                  padding: '4px 8px', borderRadius: '4px'
-                }}
-              >
-                Lacak Transaksi <ExternalLink size={10} />
-              </a>
+      const receipt = await tx.wait();
+
+      // Simpan hash asli ke local storage agar terbaca di Transparansi
+      try {
+        if (receipt && receipt.logs) {
+          for (const log of receipt.logs) {
+            try {
+              const decoded = decodeEventLog({
+                abi: DONATION_SYSTEM_ABI,
+                data: log.data,
+                topics: log.topics,
+              });
+              if (decoded.eventName === 'FundsWithdrawn') {
+                const cId = decoded.args.campaignId.toString();
+                const ts = decoded.args.timestamp.toString();
+                localStorage.setItem(`wit-tx-${cId}-${ts}`, tx.hash);
+                // Simpan ke MongoDB agar bisa dibaca dari semua perangkat
+                saveTxHash('withdrawal', `${cId}-${ts}`, tx.hash);
+              }
+            } catch (e) {
+              // Abaikan
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Gagal parse logs penarikan", e);
+      }
+
+      toast.custom((t) => (
+        <div style={{
+          opacity: t.visible ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+          transform: t.visible ? 'translateY(0) scale(1)' : 'translateY(-20px) scale(0.95)',
+          background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid rgba(16, 185, 129, 0.3)',
+          borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px',
+          boxShadow: '0 20px 40px -10px rgba(16, 185, 129, 0.15)', minWidth: '300px', pointerEvents: 'auto'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ background: 'rgba(16, 185, 129, 0.15)', padding: '8px', borderRadius: '12px', display: 'flex' }}>
+              <Wallet size={22} style={{ color: '#34d399' }} />
             </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Penarikan Sukses!</h4>
+              <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', marginTop: '2px' }}>Dana ditransfer ke wallet</p>
+            </div>
+            <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: '50%' }}>
+              <X size={16} />
+            </button>
           </div>
-          <button
-            onClick={() => toast.dismiss(toastId)}
+          <div style={{ background: 'rgba(0, 0, 0, 0.2)', borderRadius: '10px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ color: '#cbd5e1', fontSize: '13px' }}>Total Cair</span>
+            <strong style={{ color: '#10b981', fontSize: '15px' }}>{raised.toFixed(2)} USDC</strong>
+          </div>
+          <a
+            href={`https://sepolia.etherscan.io/tx/${tx.hash}`}
+            target="_blank" rel="noopener noreferrer"
             style={{
-              background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer',
-              padding: '4px', borderRadius: '6px', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', marginTop: '-2px', marginRight: '-6px'
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', textDecoration: 'none',
+              padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 500, transition: 'background 0.2s'
             }}
-            title="Tutup"
           >
-            <X size={14} />
-          </button>
-        </div>,
-        { id: toastId, duration: 8000 }
-      );
+            Detail <ExternalLink size={14} />
+          </a>
+        </div>
+      ), { id: toastId, duration: 8000 });
       setWithdrawModal(false);
       setWithdrawPurpose('');
       await fetchData();
     } catch (err) {
       const msg = err.reason || err.message || 'Gagal menarik dana';
       const safeMsg = msg.length > 80 ? msg.slice(0, 80) + '...' : msg;
-      toast.error(
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: '220px' }}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '14px' }}>Penarikan Gagal</span>
-            <span style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-              {safeMsg}
-            </span>
+      toast.custom((t) => (
+        <div style={{
+          opacity: t.visible ? 1 : 0, transition: 'transform 0.3s ease, opacity 0.3s ease',
+          transform: t.visible ? 'scale(1)' : 'scale(0.95)',
+          background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid rgba(239, 68, 68, 0.3)',
+          borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px',
+          boxShadow: '0 20px 40px -10px rgba(239, 68, 68, 0.15)', minWidth: '300px', pointerEvents: 'auto'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.15)', padding: '8px', borderRadius: '12px', display: 'flex' }}>
+              <AlertTriangle size={22} style={{ color: '#f87171' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Penarikan Gagal</h4>
+              <p style={{ margin: 0, fontSize: '13px', color: '#f87171', marginTop: '2px' }}>Reverted by blockchain</p>
+            </div>
+            <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: '50%' }}>
+              <X size={16} />
+            </button>
           </div>
-          <button
-            onClick={() => toast.dismiss(toastId)}
-            style={{
-              background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer',
-              padding: '4px', borderRadius: '6px', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', marginTop: '-2px', marginRight: '-6px'
-            }}
-            title="Tutup"
-          >
-            <X size={14} />
-          </button>
-        </div>,
-        { id: toastId, duration: 8000 }
-      );
+          <div style={{ background: 'rgba(0, 0, 0, 0.2)', borderRadius: '10px', padding: '12px', borderLeft: '3px solid #ef4444' }}>
+            <span style={{ color: '#cbd5e1', fontSize: '13px', lineHeight: '1.4' }}>{safeMsg}</span>
+          </div>
+        </div>
+      ), { id: toastId, duration: 8000 });
     } finally {
       setWithdrawLoading(false);
     }
@@ -235,21 +348,19 @@ export default function CampaignDetailPage() {
     toast.success('Address disalin!');
   };
 
-  if (loading) {
+  if (loading || !campaign) {
     return (
       <div className="detail-loading">
         <div className="detail-loading-inner">
           <div className="spinner" style={{ width: 40, height: 40, borderWidth: 3 }} />
-          <p>Memuat data dari blockchain...</p>
+          <p>{!readOnlyContract ? 'Menghubungkan ke blockchain...' : 'Memuat data kampanye...'}</p>
         </div>
       </div>
     );
   }
 
-  if (!campaign) return null;
-
-  const target = Number(formatEther(campaign.targetAmount));
-  const raised = Number(formatEther(campaign.raisedAmount));
+  const target = formatUsdc(campaign.targetAmount);
+  const raised = formatUsdc(campaign.raisedAmount);
   const progress = Math.min((raised / target) * 100, 100);
   const deadline = new Date(Number(campaign.deadline) * 1000);
   const daysLeft = Math.max(0, Math.ceil((deadline - Date.now()) / (1000 * 60 * 60 * 24)));
@@ -308,7 +419,7 @@ export default function CampaignDetailPage() {
                     </div>
                     <div className="wm-summary-row">
                       <span className="wm-summary-label">Dana Terkumpul</span>
-                      <span className="wm-summary-val success">{raised.toFixed(4)} ETH</span>
+                      <span className="wm-summary-val success">{raised.toFixed(2)} USDC</span>
                     </div>
                     <div className="wm-summary-row">
                       <span className="wm-summary-label">Penerima</span>
@@ -383,7 +494,7 @@ export default function CampaignDetailPage() {
                   {/* Amount hero */}
                   <div className="wm-amount-hero">
                     <p className="wm-amount-label">Jumlah yang akan ditarik</p>
-                    <p className="wm-amount-big">{raised.toFixed(4)} <span>ETH</span></p>
+                    <p className="wm-amount-big">{raised.toFixed(2)} <span>USDC</span></p>
                   </div>
 
                   {/* Detail grid */}
@@ -474,15 +585,15 @@ export default function CampaignDetailPage() {
             <h1 className="detail-title">{campaign.title}</h1>
             <p className="detail-desc">{campaign.description}</p>
 
-            {/* Campaign meta — no icons */}
+            {/* Campaign meta */}
             <div className="detail-meta-grid">
               <div className="detail-meta-item">
                 <p className="meta-label">Target</p>
-                <p className="meta-value">{target.toFixed(4)} ETH</p>
+                <p className="meta-value">{target.toFixed(2)} USDC</p>
               </div>
               <div className="detail-meta-item">
                 <p className="meta-label">Terkumpul</p>
-                <p className="meta-value success">{raised.toFixed(4)} ETH</p>
+                <p className="meta-value success">{raised.toFixed(2)} USDC</p>
               </div>
               <div className="detail-meta-item">
                 <p className="meta-label">Donatur</p>
@@ -500,7 +611,7 @@ export default function CampaignDetailPage() {
             <div className="detail-progress">
               <div className="detail-progress-header">
                 <span className="progress-pct-text">{progress.toFixed(1)}% Tercapai</span>
-                <span className="progress-raised-text">{raised.toFixed(4)} / {target.toFixed(4)} ETH</span>
+                <span className="progress-raised-text">{raised.toFixed(2)} / {target.toFixed(2)} USDC</span>
               </div>
               <div className="progress-bar" style={{ height: 10 }}>
                 <div className="progress-fill" style={{ width: `${progress}%` }} />
@@ -538,9 +649,32 @@ export default function CampaignDetailPage() {
                   </div>
                 )}
                 <div className="bc-item">
+                  <span className="bc-label">Token Pembayaran</span>
+                  <span className="bc-value monospace short-addr" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>USDC · {usdcAddress ? `${usdcAddress.slice(0, 10)}...${usdcAddress.slice(-6)}` : '-'}</span>
+                    {usdcAddress && (
+                      <button className="copy-btn" onClick={() => copyAddress(usdcAddress)}>
+                        <Copy size={11} />
+                      </button>
+                    )}
+                  </span>
+                </div>
+                <div className="bc-item">
                   <span className="bc-label">Dibuat Pada</span>
                   <span className="bc-value">{new Date(Number(campaign.createdAt) * 1000).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                 </div>
+                {creationTxHash && (
+                  <div className="bc-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
+                    <span className="bc-label">Tx Hash Pembuatan</span>
+                    <a href={`https://sepolia.etherscan.io/tx/${creationTxHash}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="bc-value monospace short-addr"
+                      style={{ color: 'var(--primary-400)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {creationTxHash.slice(0, 14)}...{creationTxHash.slice(-10)}
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
+                )}
                 <div className="bc-item">
                   <span className="bc-label">Status Dana</span>
                   <span className={`bc-badge ${campaign.isWithdrawn ? 'warning' : 'success'}`}>
@@ -557,7 +691,7 @@ export default function CampaignDetailPage() {
                   <CheckCircle size={20} style={{ color: 'var(--success-400)' }} />
                   <div>
                     <p className="withdraw-title">Dana Siap Ditarik</p>
-                    <p className="withdraw-amount">{raised.toFixed(4)} ETH</p>
+                    <p className="withdraw-amount">{raised.toFixed(2)} USDC</p>
                   </div>
                 </div>
                 <button className="withdraw-btn" onClick={handleWithdrawOpen}>
@@ -579,7 +713,17 @@ export default function CampaignDetailPage() {
               {!isConnected ? (
                 <div className="donate-connect-notice">
                   <Wallet size={32} style={{ color: 'var(--primary-400)', opacity: 0.7 }} />
-                  <p>Hubungkan MetaMask untuk berdonasi</p>
+                  <p>Hubungkan Wallet Anda Untuk Berdonasi</p>
+                  {openConnectModal && (
+                    <button
+                      type="button"
+                      className="gate-btn"
+                      onClick={openConnectModal}
+                      style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                      Hubungkan Wallet
+                    </button>
+                  )}
                 </div>
               ) : !user?.isRegistered ? (
                 <div className="donate-connect-notice">
@@ -602,25 +746,25 @@ export default function CampaignDetailPage() {
                 <form onSubmit={handleDonate} className="donate-form">
                   {/* Amount */}
                   <div className="form-group">
-                    <label className="form-label">Jumlah Donasi (ETH) *</label>
+                    <label className="form-label">Jumlah Donasi (USDC) *</label>
                     <div className="amount-input-wrapper">
                       <input
                         type="number"
-                        step="0.001"
-                        min="0.001"
+                        step="any"
+                        min="0.01"
                         value={amount}
                         onChange={e => setAmount(e.target.value)}
-                        placeholder="0.1"
+                        placeholder="10"
                         className="form-input"
                         required
                       />
-                      <span className="amount-suffix">ETH</span>
+                      <span className="amount-suffix">USDC</span>
                     </div>
                     {/* Quick amounts */}
                     <div className="quick-amounts">
-                      {['0.01', '0.05', '0.1', '0.5'].map(q => (
+                      {['10', '50', '100', '500'].map(q => (
                         <button key={q} type="button" className="quick-amount" onClick={() => setAmount(q)}>
-                          {q} ETH
+                          {q} USDC
                         </button>
                       ))}
                     </div>
@@ -667,7 +811,7 @@ export default function CampaignDetailPage() {
                   {/* Info */}
                   <div className="donate-info-box">
                     <Shield size={13} />
-                    <span>Transaksi diproses oleh smart contract dan dicatat permanen di blockchain Ethereum</span>
+                    <span>Donasi menggunakan <strong>Mock USDC</strong>. Proses: approve → transfer via smart contract.</span>
                   </div>
 
                   <button type="submit" className="donate-submit" disabled={donationLoading}>
@@ -679,7 +823,7 @@ export default function CampaignDetailPage() {
                     ) : (
                       <>
                         <Heart size={16} />
-                        Donasi {amount ? `${amount} ETH` : 'Sekarang'}
+                        Donasi {amount ? `${amount} USDC` : 'Sekarang'}
                       </>
                     )}
                   </button>
@@ -731,7 +875,7 @@ export default function CampaignDetailPage() {
                       <div className="donation-main">
                         <div className="donation-header">
                           <span className="donation-name">{d.donorName || 'Anonim'}</span>
-                          <span className="donation-amount">+{Number(formatEther(d.amount)).toFixed(4)} ETH</span>
+                          <span className="donation-amount">+{formatUsdc(d.amount).toFixed(2)} USDC</span>
                         </div>
                         {d.message && <p className="donation-message">"{d.message}"</p>}
                         <div className="donation-footer">

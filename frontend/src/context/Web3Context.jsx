@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAccount, usePublicClient, useWalletClient, useDisconnect } from 'wagmi';
-import { getContract, formatEther } from 'viem';
 import { DONATION_SYSTEM_ABI, CONTRACT_ADDRESS } from '../contracts/DonationSystem';
+import { MOCK_USDC_ABI, USDC_ADDRESS } from '../contracts/MockUSDC';
+import { getUserProfile } from '../api';
 import toast from 'react-hot-toast';
 
 const Web3Context = createContext(null);
@@ -16,11 +17,36 @@ export const Web3Provider = ({ children }) => {
   const [contract, setContract] = useState(null);
   const [isUserLoaded, setIsUserLoaded] = useState(false);
   const [isContractOwner, setIsContractOwner] = useState(false);
+  const [isOwnerLoaded, setIsOwnerLoaded] = useState(false);
   const [isVerifiedCreator, setIsVerifiedCreator] = useState(false);
 
   // Read-only contract: selalu tersedia selama publicClient ada (tidak perlu koneksi wallet)
   const [readOnlyContract, setReadOnlyContract] = useState(null);
+  // USDC contracts
+  const [usdcContract, setUsdcContract] = useState(null);
+  const [readOnlyUsdcContract, setReadOnlyUsdcContract] = useState(null);
 
+  // Read-only USDC contract
+  useEffect(() => {
+    if (!publicClient || !USDC_ADDRESS) {
+      setReadOnlyUsdcContract(null);
+      return;
+    }
+    const readOnly = createContractWrapper(publicClient, null, USDC_ADDRESS, MOCK_USDC_ABI);
+    setReadOnlyUsdcContract(readOnly);
+  }, [publicClient]);
+
+  // Write USDC contract (hanya bila wallet terkoneksi)
+  useEffect(() => {
+    if (!publicClient || !isConnected || !USDC_ADDRESS) {
+      setUsdcContract(null);
+      return;
+    }
+    const usdcWrapper = createContractWrapper(publicClient, walletClient, USDC_ADDRESS, MOCK_USDC_ABI);
+    setUsdcContract(usdcWrapper);
+  }, [publicClient, walletClient, isConnected]);
+
+  // Read-only DonationSystem contract
   useEffect(() => {
     if (!publicClient || !CONTRACT_ADDRESS) {
       setReadOnlyContract(null);
@@ -30,7 +56,7 @@ export const Web3Provider = ({ children }) => {
     setReadOnlyContract(readOnly);
   }, [publicClient]);
 
-  // Buat wrapper contract yang kompatibel dengan ethers-style calls (hanya jika wallet terkoneksi)
+  // Write DonationSystem contract (hanya bila wallet terkoneksi)
   useEffect(() => {
     if (!publicClient || !isConnected || !CONTRACT_ADDRESS) {
       setContract(null);
@@ -51,11 +77,20 @@ export const Web3Provider = ({ children }) => {
     setIsUserLoaded(false);
 
     try {
+      // 1. Coba dari localStorage dulu (paling cepat)
       const localUserStr = localStorage.getItem(`donationUser_${addr}`);
       if (localUserStr) {
         setUser(JSON.parse(localUserStr));
       } else {
-        setUser(null);
+        // 2. Fallback: ambil dari MongoDB via API (untuk HP / perangkat baru)
+        const remoteUser = await getUserProfile(addr);
+        if (remoteUser) {
+          // Simpan ke localStorage sebagai cache untuk session berikutnya
+          localStorage.setItem(`donationUser_${addr}`, JSON.stringify(remoteUser));
+          setUser(remoteUser);
+        } else {
+          setUser(null);
+        }
       }
     } catch (err) {
       console.error('Error loading user:', err);
@@ -78,19 +113,23 @@ export const Web3Provider = ({ children }) => {
   }, [isConnected, address, loadUser]);
 
   useEffect(() => {
-    if (contract && address) {
-      contract.owner().then((res) => {
+    if (readOnlyContract && address) {
+      setIsOwnerLoaded(false);
+      readOnlyContract.owner().then((res) => {
         setIsContractOwner(res.toLowerCase() === address.toLowerCase());
-      }).catch(console.error);
+      }).catch(console.error).finally(() => {
+        setIsOwnerLoaded(true);
+      });
 
-      contract.verifiedCreators(address).then((res) => {
+      readOnlyContract.verifiedCreators(address).then((res) => {
         setIsVerifiedCreator(res);
       }).catch(console.error);
     } else {
       setIsContractOwner(false);
       setIsVerifiedCreator(false);
+      setIsOwnerLoaded(false);
     }
-  }, [contract, address]);
+  }, [readOnlyContract, address]);
 
   const refreshUser = useCallback(async () => {
     if (address) {
@@ -112,11 +151,14 @@ export const Web3Provider = ({ children }) => {
     signer: walletClient,
     contract,
     readOnlyContract,
+    usdcContract,
+    readOnlyUsdcContract,
+    usdcAddress: USDC_ADDRESS,
     account: address,
     user,
     networkId: publicClient?.chain?.id?.toString() || null,
     isConnecting,
-    isCorrectNetwork: publicClient?.chain?.id === 31337,
+    isCorrectNetwork: publicClient?.chain?.id === parseInt(import.meta.env.VITE_NETWORK_ID || '31337'),
     connectWallet: () => { }, // RainbowKit handles this via ConnectButton
     disconnectWallet,
     refreshUser,
@@ -124,6 +166,7 @@ export const Web3Provider = ({ children }) => {
     isUserLoaded,
     shortAddress,
     isContractOwner,
+    isOwnerLoaded,
     isVerifiedCreator,
   };
 

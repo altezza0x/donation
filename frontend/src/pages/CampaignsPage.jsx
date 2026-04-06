@@ -36,12 +36,15 @@ export default function CampaignsPage() {
   useEffect(() => {
     const fetchCampaigns = async () => {
       if (!readOnlyContract) { setLoading(false); return; }
+      // Failsafe: jika RPC hang, hentikan loading setelah 20 detik
+      const timeout = setTimeout(() => setLoading(false), 20000);
       try {
         const all = await readOnlyContract.getAllCampaigns();
         setCampaigns([...all]);
       } catch (err) {
         console.error('Error fetching campaigns:', err);
       } finally {
+        clearTimeout(timeout);
         setLoading(false);
       }
     };
@@ -66,8 +69,14 @@ export default function CampaignsPage() {
       );
     }
 
-    // Sort
+    // Sort (Active always first)
     result.sort((a, b) => {
+      const isAActive = a.isActive && Number(a.deadline) > now;
+      const isBActive = b.isActive && Number(b.deadline) > now;
+
+      if (isAActive && !isBActive) return -1;
+      if (!isAActive && isBActive) return 1;
+
       if (sort === 'newest') return Number(b.createdAt) - Number(a.createdAt);
       if (sort === 'popular') return Number(b.donorCount) - Number(a.donorCount);
       if (sort === 'progress') {

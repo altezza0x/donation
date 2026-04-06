@@ -1,6 +1,13 @@
+// ABI - Auto generated
 export const DONATION_SYSTEM_ABI = [
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_usdcToken",
+        "type": "address"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -129,6 +136,10 @@ export const DONATION_SYSTEM_ABI = [
     "type": "event"
   },
   {
+    "stateMutability": "nonpayable",
+    "type": "fallback"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -241,12 +252,12 @@ export const DONATION_SYSTEM_ABI = [
         "type": "uint256"
       },
       {
-        "internalType": "address payable",
+        "internalType": "address",
         "name": "owner",
         "type": "address"
       },
       {
-        "internalType": "address payable",
+        "internalType": "address",
         "name": "beneficiary",
         "type": "address"
       },
@@ -342,7 +353,7 @@ export const DONATION_SYSTEM_ABI = [
         "type": "uint256"
       },
       {
-        "internalType": "address payable",
+        "internalType": "address",
         "name": "_beneficiary",
         "type": "address"
       }
@@ -387,11 +398,16 @@ export const DONATION_SYSTEM_ABI = [
         "internalType": "string",
         "name": "_message",
         "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_amount",
+        "type": "uint256"
       }
     ],
     "name": "donate",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -460,12 +476,12 @@ export const DONATION_SYSTEM_ABI = [
             "type": "uint256"
           },
           {
-            "internalType": "address payable",
+            "internalType": "address",
             "name": "owner",
             "type": "address"
           },
           {
-            "internalType": "address payable",
+            "internalType": "address",
             "name": "beneficiary",
             "type": "address"
           },
@@ -661,12 +677,12 @@ export const DONATION_SYSTEM_ABI = [
             "type": "uint256"
           },
           {
-            "internalType": "address payable",
+            "internalType": "address",
             "name": "owner",
             "type": "address"
           },
           {
-            "internalType": "address payable",
+            "internalType": "address",
             "name": "beneficiary",
             "type": "address"
           },
@@ -941,12 +957,12 @@ export const DONATION_SYSTEM_ABI = [
             "type": "uint256"
           },
           {
-            "internalType": "address payable",
+            "internalType": "address",
             "name": "owner",
             "type": "address"
           },
           {
-            "internalType": "address payable",
+            "internalType": "address",
             "name": "beneficiary",
             "type": "address"
           },
@@ -1109,6 +1125,19 @@ export const DONATION_SYSTEM_ABI = [
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "usdcToken",
+    "outputs": [
+      {
+        "internalType": "contract IERC20",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -1289,11 +1318,6 @@ export const DONATION_SYSTEM_ABI = [
     ],
     "stateMutability": "view",
     "type": "function"
-  },
-  {
-    "stateMutability": "payable",
-    "type": "receive"
   }
 ];
-
-export const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;

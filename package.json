@@ -5,7 +5,8 @@
     "node": "cd blockchain && npx hardhat node",
     "deploy": "cd blockchain && npx hardhat run scripts/deploy.js --network localhost",
     "frontend": "cd frontend && npm run dev",
-    "start": "concurrently -n NODE,DEPLOY,FE \"npm run node\" \"wait-on tcp:8545 && npm run deploy\" \"npm run frontend\""
+    "backend": "cd backend && node server.js",
+    "start": "concurrently -n NODE,DEPLOY,BE,FE \"npm run node\" \"wait-on tcp:8545 && npm run deploy\" \"npm run backend\" \"npm run frontend\""
   },
   "version": "1.0.0",
   "description": "",

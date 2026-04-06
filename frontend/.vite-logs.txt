@@ -1,0 +1,27 @@
+
+> frontend@0.0.0 dev
+> vite --host
+
+Port 5173 is in use, trying another one...
+[2m14.30.02[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+
+  [32m[1mVITE[22m v8.0.2[39m  [2mready in [0m[1m462[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5174[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.100.5:[1m5174[22m/[39m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+[2m14.39.50[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m14.39.50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+[2m14.39.50[22m [36m[1m[vite][22m[39m server restarted.
+[2m14.42.36[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m14.42.36[22m [36m[1m[vite][22m[39m server restarted.
+[2m14.49.33[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m14.49.33[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+[2m14.49.33[22m [36m[1m[vite][22m[39m server restarted.
+[2m17.55.50[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m17.55.50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+[2m17.55.51[22m [36m[1m[vite][22m[39m server restarted.
+[2m17.57.36[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m17.57.36[22m [36m[1m[vite][22m[39m server restarted.
+[2m17.57.37[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m17.57.37[22m [36m[1m[vite][22m[39m server restarted.

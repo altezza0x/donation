@@ -14,6 +14,7 @@ const navLinks = [
   { to: '/campaigns', label: 'Kampanye', icon: LayoutGrid },
   { to: '/create', label: 'Buat Kampanye', icon: PlusCircle },
   { to: '/transparency', label: 'Transparansi', icon: BarChart3 },
+  { to: '/faucet', label: 'Faucet', icon: Zap },
 ];
 
 export default function Navbar() {
@@ -180,6 +181,49 @@ export default function Navbar() {
               Admin
             </Link>
           )}
+
+          {/* Wallet section di mobile menu */}
+          <div className="mobile-wallet-section">
+            <ConnectButton.Custom>
+              {({ account, chain, openAccountModal, openChainModal, openConnectModal, authenticationStatus, mounted }) => {
+                const ready = mounted && authenticationStatus !== 'loading';
+                const connected = ready && account && chain &&
+                  (!authenticationStatus || authenticationStatus === 'authenticated');
+
+                if (!ready) return null;
+                if (!connected) {
+                  return (
+                    <button onClick={openConnectModal} type="button" className="mobile-connect-wallet-btn">
+                      <Wallet size={18} />
+                      Hubungkan Wallet
+                    </button>
+                  );
+                }
+                if (chain.unsupported) {
+                  return (
+                    <button onClick={openChainModal} type="button" className="mobile-wrong-network">
+                      ⚠️ Jaringan Salah — Klik untuk ganti
+                    </button>
+                  );
+                }
+                return (
+                  <>
+                    <button onClick={openAccountModal} type="button" className="mobile-wallet-connected">
+                      <div className="wallet-dot" />
+                      <span>{account.displayName}</span>
+                      {user && <span className="mobile-wallet-badge">{user.name}</span>}
+                    </button>
+                    {isConnected && (
+                      <Link to="/profile" className="mobile-profile-link" onClick={() => setMobileOpen(false)}>
+                        <User size={16} />
+                        Profil Saya
+                      </Link>
+                    )}
+                  </>
+                );
+              }}
+            </ConnectButton.Custom>
+          </div>
         </div>
       )}
     </nav>

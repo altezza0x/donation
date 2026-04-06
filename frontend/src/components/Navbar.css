@@ -398,22 +398,12 @@
     display: none;
   }
 
-  /* Sembunyikan balance dan nama agar tombol connect cukup di layar HP */
-  .wallet-balance,
-  .wallet-name {
+  /* Sembunyikan tombol wallet dari header agar tidak berdempetan */
+  .navbar-actions .connect-wallet-btn,
+  .navbar-actions .wallet-dropdown-wrapper,
+  .navbar-actions .wrong-network,
+  .nav-profile-btn {
     display: none !important;
-  }
-
-  /* Ukuran tombol connect disesuaikan untuk HP */
-  .connect-wallet-btn {
-    padding: 8px 12px;
-    font-size: 13px;
-    white-space: nowrap;
-  }
-
-  .wallet-connected-btn {
-    padding: 6px 10px;
-    font-size: 12px;
   }
 
   /* Munculkan tombol menu hamburger */
@@ -430,6 +420,93 @@
   }
 
   .logo-text {
-    font-size: 16px;
+    font-size: 17px;
+  }
+
+  /* Tombol wallet di dalam mobile menu */
+  .mobile-wallet-section {
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mobile-connect-wallet-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, var(--primary-600), var(--primary-500));
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+    transition: all 0.2s;
+  }
+
+  .mobile-wallet-connected {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+  }
+
+  .mobile-wallet-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+
+  .mobile-profile-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+  }
+
+  .mobile-profile-link:hover {
+    color: var(--primary-400);
+    background: rgba(99, 102, 241, 0.1);
+  }
+
+  .mobile-wrong-network {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, var(--danger-500), #dc2626);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
   }
 }

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useWeb3 } from '../context/Web3Context';
-import { formatEther } from 'viem';
+import { formatUsdc } from '../contracts/MockUSDC';
 import { Link } from 'react-router-dom';
+import { getAllTxHashes } from '../api';
 import {
   User, Wallet, Heart, Globe, TrendingUp, Copy,
   ExternalLink, Clock, Target, ChevronRight, ArrowUpRight,
@@ -96,16 +97,43 @@ export default function ProfilePage() {
     const fetchProfile = async () => {
       if (!contract || !account) { setLoading(false); return; }
       try {
-        const [dons, camps, allWithdrawals] = await Promise.all([
+        const [dons, camps, allWithdrawals, mongoHashes] = await Promise.all([
           contract.getUserDonations(account),
           contract.getUserCampaigns(account),
           contract.getAllWithdrawals(),
+          getAllTxHashes(),
         ]);
-        setMyDonations([...dons].reverse());
-        setMyCampaigns([...camps]);
+
+        let realTxHashMap = {};
+        mongoHashes.forEach(item => {
+          if (!item || !item.type || !item.refId || !item.txHash) return;
+          if (item.type === 'campaign') {
+            realTxHashMap[`camp-${item.refId}`] = item.txHash;
+          } else if (item.type === 'donation') {
+            realTxHashMap[`don-${item.refId}`] = item.txHash;
+          } else if (item.type === 'withdrawal') {
+            realTxHashMap[`wit-${item.refId}`] = item.txHash;
+          }
+        });
+
+        const vDons = dons.map(d => ({
+          ...d,
+          txHash: localStorage.getItem(`don-tx-${d.id.toString()}`) || realTxHashMap[`don-${d.id.toString()}`] || d.txHash
+        }));
+        
+        const vCamps = camps.map(c => ({
+          ...c,
+          txHash: localStorage.getItem(`camp-tx-${c.id.toString()}`) || realTxHashMap[`camp-${c.id.toString()}`] || null
+        }));
+
+        setMyDonations([...vDons].reverse());
+        setMyCampaigns([...vCamps]);
         const myW = [...allWithdrawals].filter(
           (w) => w.recipient.toLowerCase() === account.toLowerCase()
-        ).reverse();
+        ).map(w => ({
+          ...w,
+          txHash: localStorage.getItem(`wit-tx-${w.campaignId.toString()}-${w.timestamp.toString()}`) || realTxHashMap[`wit-${w.campaignId.toString()}-${w.timestamp.toString()}`] || w.txHash
+        })).reverse();
         setMyWithdrawals(myW);
 
         // Fetch all campaigns for title lookup
@@ -139,7 +167,7 @@ export default function ProfilePage() {
     );
   }
 
-  const totalDonated = myDonations.reduce((acc, curr) => acc + Number(formatEther(curr.amount)), 0).toFixed(4);
+  const totalDonated = myDonations.reduce((acc, curr) => acc + formatUsdc(curr.amount), 0).toFixed(2);
 
   return (
     <div className="profile-page">
@@ -199,7 +227,7 @@ export default function ProfilePage() {
               </div>
               <div className="profile-stat">
                 <p className="profile-stat-val">{totalDonated}</p>
-                <p className="profile-stat-lbl">ETH Disumbang</p>
+                <p className="profile-stat-lbl">USDC Disumbang</p>
               </div>
               <div className="profile-stat">
                 <p className="profile-stat-val">{myCampaigns.length}</p>
@@ -207,9 +235,18 @@ export default function ProfilePage() {
               </div>
               <div className="profile-stat">
                 <p className="profile-stat-val">
-                  {user.registeredAt
-                    ? new Date(user.registeredAt > 10000000000 ? user.registeredAt : user.registeredAt * 1000).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' })
-                    : '-'}
+                  {(() => {
+                    if (!user?.registeredAt) return '-';
+                    const val = user.registeredAt;
+                    // Jika string (ISO), langsung parse. Jika angka, cek ms vs s.
+                    const dateObj = isNaN(val) 
+                      ? new Date(val) 
+                      : new Date(Number(val) > 10000000000 ? Number(val) : Number(val) * 1000);
+                    
+                    return isNaN(dateObj.getTime()) 
+                      ? '-' 
+                      : dateObj.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
+                  })()}
                 </p>
                 <p className="profile-stat-lbl">Bergabung</p>
               </div>
@@ -282,7 +319,7 @@ export default function ProfilePage() {
                                     <span className="pd-camp-sub">Kampanye #{d.campaignId.toString()}</span>
                                   </div>
                                 </td>
-                                <td><span className="pd-amount-cell">+{Number(formatEther(d.amount)).toFixed(4)} ETH</span></td>
+                                <td><span className="pd-amount-cell">+{formatUsdc(d.amount).toFixed(2)} USDC</span></td>
                                 <td>
                                   <span className="pd-time-cell">
                                     <Clock size={10} />
@@ -325,7 +362,7 @@ export default function ProfilePage() {
                             {/* Row 1: ID + Amount */}
                             <div className="pd-card-row1">
                               <span className="pd-id-badge">#{d.id.toString()}</span>
-                              <span className="pd-amount-cell">+{Number(formatEther(d.amount)).toFixed(4)} ETH</span>
+                              <span className="pd-amount-cell">+{formatUsdc(d.amount).toFixed(2)} USDC</span>
                             </div>
 
                             {/* Row 2: Campaign title */}
@@ -387,10 +424,9 @@ export default function ProfilePage() {
                   </div>
                 ) : (
                   <>
-                    <Pagination {...campaignPg} />
                     {campaignPg.paged.map((c, i) => {
-                      const target = Number(formatEther(c.targetAmount));
-                      const raised = Number(formatEther(c.raisedAmount));
+                      const target = formatUsdc(c.targetAmount);
+                      const raised = formatUsdc(c.raisedAmount);
                       const progress = Math.min((raised / target) * 100, 100);
                       const isExpired = Number(c.deadline) * 1000 < Date.now();
                       return (
@@ -416,11 +452,11 @@ export default function ProfilePage() {
                           <div className="pc-stats">
                             <div className="pc-stat-item">
                               <span className="pc-stat-label">Terkumpul</span>
-                              <span className="pc-stat-val success">{raised.toFixed(4)} ETH</span>
+                              <span className="pc-stat-val success">{raised.toFixed(2)} USDC</span>
                             </div>
                             <div className="pc-stat-item">
                               <span className="pc-stat-label">Target</span>
-                              <span className="pc-stat-val">{target.toFixed(4)} ETH</span>
+                              <span className="pc-stat-val">{target.toFixed(2)} USDC</span>
                             </div>
                             <div className="pc-stat-item">
                               <span className="pc-stat-label">Donatur</span>
@@ -448,41 +484,42 @@ export default function ProfilePage() {
                     <p>Belum ada penarikan dana yang dilakukan oleh akun Anda.</p>
                   </div>
                 ) : (
-                  <>
-                    <Pagination {...withdrawalPg} />
+                  <div className="pw-cards-container">
                     {withdrawalPg.paged.map((w, i) => (
-                      <div key={i} className="profile-withdrawal-item">
-                        <div className="pw-row">
-                          <div className="pw-campaign">
-                            <span className="pw-campaign-title">{w.campaignTitle}</span>
-                            <span className="pw-campaign-id">Kampanye #{w.campaignId.toString()}</span>
+                      <div key={i} className="pw-card">
+                        <div className="pw-card-header">
+                          <div className="pw-card-icon">
+                            <Wallet size={20} />
                           </div>
-                          <div className="pw-amount-col">
-                            <span className="pw-amount">{Number(formatEther(w.amount)).toFixed(4)} ETH</span>
-                            <Link to={`/campaigns/${w.campaignId}`} className="pw-link">
-                              Lihat kampanye <ExternalLink size={11} />
+                          <div className="pw-card-title-col">
+                            <h4>{w.campaignTitle}</h4>
+                            <span>Kampanye #{w.campaignId.toString()}</span>
+                          </div>
+                          <div className="pw-card-amount-col">
+                            <strong>{formatUsdc(w.amount).toFixed(2)} USDC</strong>
+                            <Link to={`/campaigns/${w.campaignId}`}>
+                              Detail Kampanye <ArrowUpRight size={12} />
                             </Link>
                           </div>
                         </div>
-
-                        <div className="pw-meta">
-                          <div className="pw-meta-item">
-                            <span className="pw-meta-label">Status</span>
-                            <span className="pw-meta-value success">Berhasil ditarik</span>
+                        <div className="pw-card-grid">
+                          <div className="pw-grid-item">
+                            <span className="pw-lbl">Status</span>
+                            <span className="pw-val success"><CheckCircle size={12} /> Berhasil ditarik</span>
                           </div>
-                          <div className="pw-meta-item">
-                            <span className="pw-meta-label">Waktu</span>
-                            <span className="pw-meta-value">
-                              {new Date(Number(w.timestamp) * 1000).toLocaleString('id-ID')}
+                          <div className="pw-grid-item">
+                            <span className="pw-lbl">Waktu Ditarik</span>
+                            <span className="pw-val">
+                              {new Date(Number(w.timestamp) * 1000).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
-                          <div className="pw-meta-item">
-                            <span className="pw-meta-label">Tujuan</span>
-                            <span className="pw-meta-value">{w.purpose || '-'}</span>
+                          <div className="pw-grid-item">
+                            <span className="pw-lbl">Tujuan Penarikan</span>
+                            <span className="pw-val" title={w.purpose}>{w.purpose || '-'}</span>
                           </div>
-                          <div className="pw-meta-item">
-                            <span className="pw-meta-label">Penerima</span>
-                            <span className="pw-meta-value monospace">
+                          <div className="pw-grid-item">
+                            <span className="pw-lbl">Wallet Penerima</span>
+                            <span className="pw-val monospace">
                               {w.recipient.slice(0, 8)}...{w.recipient.slice(-6)}
                             </span>
                           </div>
@@ -490,7 +527,7 @@ export default function ProfilePage() {
                       </div>
                     ))}
                     <Pagination {...withdrawalPg} />
-                  </>
+                  </div>
                 )}
               </div>
             )}
@@ -550,7 +587,7 @@ export default function ProfilePage() {
                 {/* Jumlah */}
                 <span className="profile-detail-label">Jumlah</span>
                 <span className="profile-detail-value" style={{ color: 'var(--success-400)', fontWeight: 700, fontSize: 16 }}>
-                  +{Number(formatEther(selectedDonation.amount)).toFixed(4)} ETH
+                  +{formatUsdc(selectedDonation.amount).toFixed(2)} USDC
                 </span>
 
                 {/* Waktu */}

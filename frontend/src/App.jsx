@@ -20,6 +20,7 @@ const TransparencyPage = lazy(() => import('./pages/TransparencyPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
+const FaucetPage = lazy(() => import('./pages/FaucetPage'));
 import './App.css';
 
 // ======================================================
@@ -103,6 +104,7 @@ function App() {
                       <Route path="/profile" element={<ProfilePage />} />
                       <Route path="/register" element={<RegisterPage />} />
                       <Route path="/admin" element={<AdminPage />} />
+                      <Route path="/faucet" element={<FaucetPage />} />
                     </Routes>
                   </Suspense>
                 </main>

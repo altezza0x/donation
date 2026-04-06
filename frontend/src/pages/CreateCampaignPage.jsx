@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWeb3 } from '../context/Web3Context';
-import { parseEther } from 'viem';
+import { parseUsdc } from '../contracts/MockUSDC';
+import { DONATION_SYSTEM_ABI } from '../contracts/DonationSystem';
+import { decodeEventLog } from 'viem';
+import { saveTxHash, API_BASE } from '../api';
 import toast from 'react-hot-toast';
-import { PlusCircle, Wallet, Info, Calendar, Target, Tag, FileText, Zap, Upload } from 'lucide-react';
+import { PlusCircle, Wallet, Info, Calendar, Target, Tag, FileText, Zap, Upload, CheckCircle, AlertCircle, X, ExternalLink } from 'lucide-react';
 import './CreateCampaignPage.css';
 
 const CATEGORIES = ['Pendidikan', 'Kesehatan', 'Bencana Alam', 'Keagamaan', 'Sosial', 'Lainnya'];
@@ -17,6 +20,7 @@ export default function CreateCampaignPage() {
   const { contract, isConnected, user, isVerifiedCreator } = useWeb3();
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadAbortController, setUploadAbortController] = useState(null);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -44,37 +48,59 @@ export default function CreateCampaignPage() {
       return;
     }
 
+    if (uploadAbortController) {
+      uploadAbortController.abort();
+    }
+    const controller = new AbortController();
+    setUploadAbortController(controller);
+
     setUploadingImage(true);
     const toastId = toast.loading('Mengunggah gambar...');
 
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        const base64 = reader.result;
-        const ext = '.' + file.name.split('.').pop();
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: base64, ext })
-        });
-        const data = await res.json();
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Gagal membaca file'));
+        reader.readAsDataURL(file);
+      });
 
-        if (res.ok) {
-          setForm(prev => ({ ...prev, imageUrl: data.url }));
-          toast.success('Gambar berhasil diunggah!', { id: toastId });
-        } else {
-          throw new Error(data.error || 'Server error');
-        }
-        setUploadingImage(false);
-      };
-      reader.onerror = () => {
-        throw new Error('Gagal membaca file');
-      };
+      const ext = '.' + file.name.split('.').pop();
+      const res = await fetch(`${API_BASE}/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64, ext }),
+        signal: controller.signal
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Server tidak merespons (Mungkin backend mati)');
+      }
+
+      const data = await res.json();
+      setForm(prev => ({ ...prev, imageUrl: data.url }));
+      toast.success('Gambar berhasil diunggah!', { id: toastId });
+      
     } catch (error) {
-      toast.error(error.message || 'Gagal mengunggah gambar', { id: toastId });
+      if (error.name === 'AbortError') {
+        toast.error('Upload dibatalkan', { id: toastId });
+      } else {
+        toast.error(error.message || 'Gagal mengunggah gambar', { id: toastId });
+      }
       console.error(error);
+    } finally {
       setUploadingImage(false);
+      setUploadAbortController(null);
+      // Reset input supaya bisa upload file yang sama lagi jika batal
+      e.target.value = null;
+    }
+  };
+
+  const handleCancelUpload = (e) => {
+    e.preventDefault();
+    if (uploadAbortController) {
+      uploadAbortController.abort();
     }
   };
 
@@ -91,7 +117,7 @@ export default function CreateCampaignPage() {
     const toastId = toast.loading('Membuat kampanye di blockchain...');
 
     try {
-      const targetWei = parseEther(form.targetAmount.toString());
+      const targetWei = parseUsdc(form.targetAmount.toString());
       const duration = parseInt(form.durationDays);
 
       const tx = await contract.createCampaign(
@@ -107,11 +133,119 @@ export default function CreateCampaignPage() {
       toast.loading('Menunggu konfirmasi blockchain...', { id: toastId });
       const receipt = await tx.wait();
 
-      toast.success('✅ Kampanye berhasil dibuat!', { id: toastId, duration: 5000 });
-      navigate('/campaigns');
+      let newCampaignId = null;
+      try {
+        if (receipt && receipt.logs) {
+          for (const log of receipt.logs) {
+            try {
+              const decoded = decodeEventLog({
+                abi: DONATION_SYSTEM_ABI,
+                data: log.data,
+                topics: log.topics,
+              });
+              if (decoded.eventName === 'CampaignCreated') {
+                newCampaignId = decoded.args.campaignId.toString();
+                localStorage.setItem(`camp-tx-${newCampaignId}`, tx.hash);
+                // Simpan ke MongoDB agar bisa dibaca dari semua perangkat
+                saveTxHash('campaign', newCampaignId, tx.hash);
+              }
+            } catch (e) { }
+          }
+        }
+      } catch (e) { }
+
+      toast.custom((t) => (
+        <div style={{
+          opacity: t.visible ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+          transform: t.visible ? 'translateY(0) scale(1)' : 'translateY(-20px) scale(0.95)',
+          background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid rgba(16, 185, 129, 0.3)',
+          borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px',
+          boxShadow: '0 20px 40px -10px rgba(16, 185, 129, 0.15)', minWidth: '320px', pointerEvents: 'auto'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ background: 'rgba(16, 185, 129, 0.15)', padding: '8px', borderRadius: '12px', display: 'flex' }}>
+              <CheckCircle size={22} style={{ color: '#34d399' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Kampanye Dibuat!</h4>
+              <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', marginTop: '2px' }}>Tersimpan di blockchain</p>
+            </div>
+            <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: '50%' }}>
+              <X size={16} />
+            </button>
+          </div>
+          <div style={{ background: 'rgba(0, 0, 0, 0.2)', borderRadius: '10px', padding: '12px', display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ color: '#cbd5e1', fontSize: '13px' }}>ID Kampanye</span>
+            <strong style={{ color: '#10b981', fontSize: '14px' }}>{newCampaignId ? `#${newCampaignId}` : '-'}</strong>
+            <div style={{ width: '100%', height: '1px', background: 'rgba(255,255,255,0.05)' }} />
+            <span style={{ color: '#cbd5e1', fontSize: '13px' }}>Target Dana</span>
+            <strong style={{ color: '#10b981', fontSize: '14px' }}>{form.targetAmount} USDC</strong>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => {
+                if (newCampaignId) {
+                  const url = `${window.location.origin}/campaigns/${newCampaignId}`;
+                  navigator.clipboard.writeText(url);
+                  toast.success('Alamat kampanye disalin!');
+                }
+              }}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', border: 'none', cursor: 'pointer',
+                padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 500, transition: 'background 0.2s'
+              }}
+            >
+              Salin URL
+            </button>
+            <a
+              href={`https://sepolia.etherscan.io/tx/${tx.hash}`}
+              target="_blank" rel="noopener noreferrer"
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', textDecoration: 'none',
+                padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 500, transition: 'background 0.2s'
+              }}
+            >
+              Tx Explorer <ExternalLink size={14} />
+            </a>
+          </div>
+        </div>
+      ), { id: toastId, duration: 8000 });
+
+      // Navigate ke halaman detail kampanye jika ID berhasil didapat
+      if (newCampaignId) {
+        navigate(`/campaigns/${newCampaignId}`);
+      } else {
+        navigate('/campaigns');
+      }
     } catch (err) {
       const msg = err.reason || err.message || 'Gagal membuat kampanye';
-      toast.error(msg.slice(0, 100), { id: toastId });
+      toast.custom((t) => (
+        <div style={{
+          opacity: t.visible ? 1 : 0, transition: 'transform 0.3s ease, opacity 0.3s ease',
+          transform: t.visible ? 'scale(1)' : 'scale(0.95)',
+          background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid rgba(239, 68, 68, 0.3)',
+          borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px',
+          boxShadow: '0 20px 40px -10px rgba(239, 68, 68, 0.15)', minWidth: '300px', pointerEvents: 'auto'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.15)', padding: '8px', borderRadius: '12px', display: 'flex' }}>
+              <AlertCircle size={22} style={{ color: '#f87171' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Gagal Dibuat</h4>
+              <p style={{ margin: 0, fontSize: '13px', color: '#f87171', marginTop: '2px' }}>Transaksi blockchain gagal</p>
+            </div>
+            <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: '50%' }}>
+              <X size={16} />
+            </button>
+          </div>
+          <div style={{ background: 'rgba(0, 0, 0, 0.2)', borderRadius: '10px', padding: '12px', borderLeft: '3px solid #ef4444' }}>
+            <span style={{ color: '#cbd5e1', fontSize: '13px', lineHeight: '1.4' }}>{msg.slice(0, 100)}</span>
+          </div>
+        </div>
+      ), { id: toastId, duration: 8000 });
       console.error(err);
     } finally {
       setLoading(false);
@@ -281,18 +415,29 @@ export default function CreateCampaignPage() {
                     placeholder="Masukkan URL gambar..."
                     className="form-input"
                     style={{ flex: 1 }}
+                    disabled={uploadingImage}
                   />
-                  <label className="quick-amount" style={{ margin: 0, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', opacity: uploadingImage ? 0.5 : 1 }}>
-                    <Upload size={14} />
-                    {uploadingImage ? 'Mengunggah...' : 'Upload File'}
-                    <input
-                      type="file"
-                      accept="image/jpeg, image/png, image/webp, image/gif"
-                      onChange={handleImageUpload}
-                      style={{ display: 'none' }}
-                      disabled={uploadingImage}
-                    />
-                  </label>
+                  {uploadingImage ? (
+                    <button
+                      type="button"
+                      onClick={handleCancelUpload}
+                      className="quick-amount"
+                      style={{ margin: 0, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                    >
+                      <X size={14} /> Batal
+                    </button>
+                  ) : (
+                    <label className="quick-amount" style={{ margin: 0, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                      <Upload size={14} />
+                      Upload File
+                      <input
+                        type="file"
+                        accept="image/jpeg, image/png, image/webp, image/gif"
+                        onChange={handleImageUpload}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                  )}
                 </div>
 
                 <span className="form-hint">Masukkan URL gambar yang valid atau unggah file langsung dari perangkat Anda (Maks 2MB).</span>
@@ -307,32 +452,32 @@ export default function CreateCampaignPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">
-                    <Target size={13} /> Target Donasi (ETH) *
+                    <Target size={13} /> Target Donasi (USDC) *
                   </label>
                   <div className="amount-input-wrapper">
                     <input
                       name="targetAmount"
                       type="number"
-                      step="0.001"
-                      min="0.001"
+                      step="any"
+                      min="0.01"
                       value={form.targetAmount}
                       onChange={handleChange}
-                      placeholder="1.0"
+                      placeholder="1000"
                       className="form-input"
                       required
                     />
-                    <span className="amount-suffix">ETH</span>
+                    <span className="amount-suffix">USDC</span>
                   </div>
                   {/* Quick targets */}
                   <div className="quick-amounts" style={{ marginTop: 8 }}>
-                    {['0.5', '1', '2', '5'].map(q => (
+                    {['500', '1000', '2000', '5000'].map(q => (
                       <button
                         key={q}
                         type="button"
                         className="quick-amount"
                         onClick={() => setForm(prev => ({ ...prev, targetAmount: q }))}
                       >
-                        {q} ETH
+                        {q} USDC
                       </button>
                     ))}
                   </div>
@@ -417,7 +562,7 @@ export default function CreateCampaignPage() {
                 </div>
                 <div className="preview-stats">
                   <div>
-                    <p className="preview-stat-val">{form.targetAmount || '0'} ETH</p>
+                    <p className="preview-stat-val">{form.targetAmount || '0'} USDC</p>
                     <p className="preview-stat-lbl">Target</p>
                   </div>
                   <div>

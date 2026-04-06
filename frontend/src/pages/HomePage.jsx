@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useWeb3 } from '../context/Web3Context';
-import { formatEther } from 'viem';
+import { formatUsdc } from '../contracts/MockUSDC';
 import CampaignCard from '../components/CampaignCard';
 import {
   Shield, Zap, TrendingUp, Users, Heart, ArrowRight,
@@ -134,14 +134,23 @@ export default function HomePage() {
         setStats({
           totalCampaigns: Number(platformStats[0]),
           totalDonations: Number(platformStats[1]),
-          totalFundsRaised: parseFloat(formatEther(platformStats[2])).toFixed(4),
+          totalFundsRaised: formatUsdc(platformStats[2]).toFixed(2),
           activeCampaigns: Number(platformStats[3]),
         });
 
         setAllCampaigns(allCamps);
 
-        // Top campaigns by raised amount
-        const sorted = [...allCamps].sort((a, b) => Number(b.raisedAmount) - Number(a.raisedAmount));
+        // Top campaigns by raised amount, prioritize active campaigns
+        const now = Date.now() / 1000;
+        const sorted = [...allCamps].sort((a, b) => {
+          const isAActive = a.isActive && Number(a.deadline) > now;
+          const isBActive = b.isActive && Number(b.deadline) > now;
+
+          if (isAActive && !isBActive) return -1;
+          if (!isAActive && isBActive) return 1;
+
+          return Number(b.raisedAmount) - Number(a.raisedAmount);
+        });
         setCampaigns(sorted.slice(0, 6));
 
         // Recent donations — reverse for newest first, take top 8
@@ -206,10 +215,9 @@ export default function HomePage() {
             </h1>
 
             <p className="hero-desc animate-fade-in">
-              Platform donasi berbasis{' '}
-              <strong className="highlight-text">blockchain Ethereum</strong> dengan{' '}
-              <strong className="highlight-text">smart contract Solidity</strong>{' '}
-              — setiap donasi tercatat permanen, transparan, dan dapat dilacak siapa pun.
+              Membawa niat baik Anda selangkah lebih maju. Diperkuat oleh ketangguhan{' '}
+              <strong className="highlight-text">teknologi blockchain</strong> dan kepastian{' '}
+              <strong className="highlight-text">smart contract</strong>, kami memastikan tiap jejak donasi Anda mengalir secara transparan, 100% utuh, dan tepat sasaran.
             </p>
 
             <div className="hero-actions animate-fade-in">
@@ -249,13 +257,13 @@ export default function HomePage() {
             {[
               { label: 'Total Kampanye', value: stats?.totalCampaigns ?? 0, color: 'var(--primary-400)', decimals: 0 },
               { label: 'Total Donasi', value: stats?.totalDonations ?? 0, color: 'var(--success-400)', decimals: 0 },
-              { label: 'ETH Terkumpul', value: stats ? stats.totalFundsRaised : 0, color: 'var(--accent-400)', isEth: true, decimals: 4 },
+              { label: 'USDC Terkumpul', value: stats ? stats.totalFundsRaised : 0, color: 'var(--accent-400)', isUsdc: true, decimals: 2 },
               { label: 'Kampanye Aktif', value: stats?.activeCampaigns ?? 0, color: 'var(--warning-400)', decimals: 0 },
-            ].map(({ label, value, color, isEth, decimals }, index) => (
+            ].map(({ label, value, color, isUsdc, decimals }, index) => (
               <div key={label} className="panel-stat-item animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
                 <div className="panel-stat-value" style={{ color }}>
                   {stats ? <CountUp end={value} decimals={decimals} /> : '—'}
-                  {isEth && stats && <span className="panel-stat-suffix" style={{ marginLeft: 6 }}>ETH</span>}
+                  {isUsdc && stats && <span className="panel-stat-suffix" style={{ marginLeft: 6 }}>USDC</span>}
                 </div>
                 <div className="panel-stat-label">{label}</div>
                 {index < 3 && <div className="panel-stat-divider" />}

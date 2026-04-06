@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useWeb3 } from '../context/Web3Context';
-import { formatEther } from 'viem';
+import { formatUsdc } from '../contracts/MockUSDC';
+import { parseAbiItem } from 'viem';
+import { getAllTxHashes } from '../api';
 import {
   BarChart3, TrendingUp, Users, Heart, Globe, Shield,
   ExternalLink, Copy, RefreshCw, Search, Clock, CheckCircle,
@@ -8,18 +10,29 @@ import {
 } from 'lucide-react';
 import './TransparencyPage.css';
 
-// Format bytes32 txHash → tampilkan singkat, kembalikan full hex
+// Format bytes32 txHash → kembalikan full hex string yang valid
 function formatHash(hash) {
-  if (!hash || hash === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+  if (!hash) return null;
+  // Jika sudah string hex yang valid, dan bukan hash kosong
+  if (typeof hash === 'string') {
+    // Normalisasi (trim & pastikan lowercase untuk perbandingan)
+    const h = hash.trim().toLowerCase();
+    if (h === '0x' || h === '0x0000000000000000000000000000000000000000000000000000000000000000') return null;
+    return hash; // Balikkan hash aslinya (bisa mixed-case)
+  }
+  // Jika BigInt or number, pad jadi 64 char + 0x (66 char total)
+  try {
+    const hex = BigInt(hash).toString(16);
+    if (hex === '0') return null;
+    return `0x${hex.padStart(64, '0')}`;
+  } catch (e) {
     return null;
   }
-  const h = typeof hash === 'string' ? hash : `0x${BigInt(hash).toString(16).padStart(64, '0')}`;
-  return h;
 }
 
 function shortHash(hash) {
   if (!hash) return '-';
-  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
+  return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
 }
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -81,7 +94,7 @@ function Pagination({ page, pageSize, totalPages, total, goFirst, goLast, goPrev
 }
 
 export default function TransparencyPage() {
-  const { readOnlyContract, isConnected } = useWeb3();
+  const { readOnlyContract, isConnected, networkId, provider } = useWeb3();
   const [stats, setStats] = useState(null);
   const [allDonations, setAllDonations] = useState([]);
   const [allCampaigns, setAllCampaigns] = useState([]);
@@ -99,6 +112,12 @@ export default function TransparencyPage() {
     if (!readOnlyContract) { setLoading(false); return; }
 
     let startTime;
+    // Failsafe: jika RPC hang, hentikan loading setelah 20 detik
+    const timeout = setTimeout(() => {
+      setLoading(false);
+      setRefreshing(false);
+    }, 20000);
+
     if (showRefresh) {
       setRefreshing(true);
       startTime = Date.now();
@@ -112,19 +131,102 @@ export default function TransparencyPage() {
         readOnlyContract.getAllWithdrawals(),
       ]);
 
+      let realTxHashMap = {};
+      if (provider) {
+        try {
+          const isSepolia = networkId === '11155111';
+          let fromBlock = 0n;
+          
+          if (isSepolia) {
+             const currentBlock = await provider.getBlockNumber().catch(() => 5000000n);
+             fromBlock = currentBlock > 90000n ? currentBlock - 90000n : 0n;
+          }
+
+          const [donationLogs, withdrawLogs, campaignLogs] = await Promise.all([
+            provider.getLogs({
+              address: import.meta.env.VITE_CONTRACT_ADDRESS,
+              event: parseAbiItem('event DonationMade(uint256 indexed donationId, uint256 indexed campaignId, address indexed donor, uint256 amount, uint256 timestamp)'),
+              fromBlock,
+            }).catch(() => []),
+            provider.getLogs({
+              address: import.meta.env.VITE_CONTRACT_ADDRESS,
+              event: parseAbiItem('event FundsWithdrawn(uint256 indexed campaignId, address indexed recipient, uint256 amount, uint256 timestamp)'),
+              fromBlock,
+            }).catch(() => []),
+            provider.getLogs({
+              address: import.meta.env.VITE_CONTRACT_ADDRESS,
+              event: parseAbiItem('event CampaignCreated(uint256 indexed campaignId, address indexed owner, string title, uint256 targetAmount, uint256 deadline)'),
+              fromBlock,
+            }).catch(() => [])
+          ]);
+
+          donationLogs.forEach(log => {
+            if (log.args && log.args.donationId !== undefined) {
+              realTxHashMap[`don-${log.args.donationId.toString()}`] = log.transactionHash;
+            }
+          });
+
+          withdrawLogs.forEach(log => {
+            if (log.args && log.args.campaignId !== undefined && log.args.timestamp !== undefined) {
+              realTxHashMap[`wit-${log.args.campaignId.toString()}-${log.args.timestamp.toString()}`] = log.transactionHash;
+            }
+          });
+
+          campaignLogs.forEach(log => {
+            if (log.args && log.args.campaignId !== undefined) {
+              realTxHashMap[`camp-${log.args.campaignId.toString()}`] = log.transactionHash;
+            }
+          });
+        } catch (e) {
+          console.warn('Failed to fetch real transaction logs:', e);
+        }
+      }
+
+      // Fetch from MongoDB
+      const mongoHashes = await getAllTxHashes();
+      
+      // Update global realTxHashMap with verified mongo hashes
+      // Tipe: 'campaign', 'donation', 'withdrawal'
+      mongoHashes.forEach(item => {
+        if (!item || !item.type || !item.refId || !item.txHash) return;
+        if (item.type === 'campaign') {
+          realTxHashMap[`camp-${item.refId}`] = item.txHash;
+        } else if (item.type === 'donation') {
+          realTxHashMap[`don-${item.refId}`] = item.txHash;
+        } else if (item.type === 'withdrawal') {
+          realTxHashMap[`wit-${item.refId}`] = item.txHash;
+        }
+      });
+
+      const verifiedDonations = donations.map(d => ({
+        ...d,
+        txHash: localStorage.getItem(`don-tx-${d.id.toString()}`) || realTxHashMap[`don-${d.id.toString()}`] || d.txHash
+      }));
+
+      const verifiedWithdrawals = withdrawalsList.map(w => ({
+        ...w,
+        txHash: localStorage.getItem(`wit-tx-${w.campaignId.toString()}-${w.timestamp.toString()}`) || realTxHashMap[`wit-${w.campaignId.toString()}-${w.timestamp.toString()}`] || w.txHash
+      }));
+
+      const verifiedCampaigns = campaigns.map(c => ({
+        ...c,
+        txHash: localStorage.getItem(`camp-tx-${c.id.toString()}`) || realTxHashMap[`camp-${c.id.toString()}`] || null
+      }));
+
       setStats({
         totalCampaigns: Number(platformStats[0]),
         totalDonations: Number(platformStats[1]),
-        totalFundsRaised: formatEther(platformStats[2]),
+        totalFundsRaised: formatUsdc(platformStats[2]).toFixed(2),
         activeCampaigns: Number(platformStats[3]),
       });
 
-      setAllDonations([...donations].reverse());
-      setAllCampaigns([...campaigns]);
-      setAllWithdrawals([...withdrawalsList].reverse());
+      setAllDonations([...verifiedDonations].reverse());
+      setAllCampaigns([...verifiedCampaigns].reverse());
+      setAllWithdrawals([...verifiedWithdrawals].reverse());
     } catch (err) {
       console.error('Error fetching transparency data:', err);
     } finally {
+      clearTimeout(timeout);
       if (showRefresh) {
         const elapsed = Date.now() - startTime;
         if (elapsed < 800) {
@@ -177,6 +279,11 @@ export default function TransparencyPage() {
   const campaignPg = usePagination(filteredCampaigns);
   const withdrawalPg = usePagination(filteredWithdrawals);
 
+  // Explorer URL Helpers
+  const isSepolia = networkId === '11155111';
+  const explorerUrl = isSepolia ? 'https://sepolia.etherscan.io' : '';
+  const getTxUrl = (hash) => explorerUrl ? `${explorerUrl}/tx/${hash}` : '#';
+
   return (
     <div className="transparency-page">
       {/* Header */}
@@ -224,7 +331,7 @@ export default function TransparencyPage() {
                 },
                 {
                   label: 'Total Dana',
-                  value: stats ? parseFloat(stats.totalFundsRaised).toFixed(4) + ' ETH' : '—',
+                  value: stats ? stats.totalFundsRaised + ' USDC' : '—',
                   desc: 'Akumulasi seluruh donasi',
                   accent: '#22d3ee',
                 },
@@ -344,7 +451,7 @@ export default function TransparencyPage() {
                             </td>
                             <td>
                               <span className="amount-cell">
-                                {Number(formatEther(d.amount)).toFixed(4)} ETH
+                                {formatUsdc(d.amount).toFixed(2)} USDC
                               </span>
                             </td>
                             <td>
@@ -360,9 +467,15 @@ export default function TransparencyPage() {
                               {txHash ? (
                                 <div className="hash-cell">
                                   <Hash size={10} className="hash-icon" />
-                                  <span className="hash-text monospace" title={txHash}>
-                                    {shortHash(txHash)}
-                                  </span>
+                                  {explorerUrl ? (
+                                    <a href={getTxUrl(txHash)} target="_blank" rel="noopener noreferrer" className="hash-text monospace" style={{ color: 'var(--primary-400)', textDecoration: 'none' }} title={txHash}>
+                                      {shortHash(txHash)}
+                                    </a>
+                                  ) : (
+                                    <span className="hash-text monospace" title={txHash}>
+                                      {shortHash(txHash)}
+                                    </span>
+                                  )}
                                   <button
                                     className="copy-tiny"
                                     onClick={() => copyText(txHash, `dhash-${i}`)}
@@ -401,6 +514,7 @@ export default function TransparencyPage() {
                         <th className="col-id">Donatur</th>
                         <th className="col-status">Status</th>
                         <th className="col-time">Deadline</th>
+                        <th className="col-hash">Tx Hash</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -411,8 +525,8 @@ export default function TransparencyPage() {
                           </td>
                         </tr>
                       ) : campaignPg.paged.map((c, i) => {
-                        const target = Number(formatEther(c.targetAmount));
-                        const raised = Number(formatEther(c.raisedAmount));
+                        const target = formatUsdc(c.targetAmount);
+                        const raised = formatUsdc(c.raisedAmount);
                         const progress = Math.min((raised / target) * 100, 100);
                         const isExpired = Number(c.deadline) * 1000 < Date.now();
                         return (
@@ -432,10 +546,10 @@ export default function TransparencyPage() {
                                 </button>
                               </div>
                             </td>
-                            <td><span className="amount-cell">{target.toFixed(4)} ETH</span></td>
+                            <td><span className="amount-cell">{target.toFixed(2)} USDC</span></td>
                             <td>
                               <div className="progress-cell">
-                                <span>{raised.toFixed(4)} ETH</span>
+                                <span>{raised.toFixed(2)} USDC</span>
                                 <div className="mini-progress">
                                   <div style={{ width: `${progress}%` }} />
                                 </div>
@@ -452,6 +566,31 @@ export default function TransparencyPage() {
                               <span className="time-cell" style={{ fontSize: 11 }}>
                                 {new Date(Number(c.deadline) * 1000).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                               </span>
+                            </td>
+                            <td onClick={(e) => e.stopPropagation()}>
+                              {formatHash(c.txHash) ? (
+                                <div className="hash-cell">
+                                  <Hash size={10} className="hash-icon" />
+                                  {explorerUrl ? (
+                                    <a href={getTxUrl(formatHash(c.txHash))} target="_blank" rel="noopener noreferrer" className="hash-text monospace" style={{ color: 'var(--primary-400)', textDecoration: 'none' }} title={formatHash(c.txHash)}>
+                                      {shortHash(formatHash(c.txHash))}
+                                    </a>
+                                  ) : (
+                                    <span className="hash-text monospace" title={formatHash(c.txHash)}>
+                                      {shortHash(formatHash(c.txHash))}
+                                    </span>
+                                  )}
+                                  <button
+                                    className="copy-tiny"
+                                    onClick={() => copyText(formatHash(c.txHash), `chash-${i}`)}
+                                    title="Salin hash"
+                                  >
+                                    {copiedHash === `chash-${i}` ? <CheckCircle size={10} style={{ color: 'var(--success-400)' }} /> : <Copy size={10} />}
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="hash-null">—</span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -513,7 +652,7 @@ export default function TransparencyPage() {
                             <td>
                               <span className="amount-cell withdrawal-amount">
                                 <ArrowUpRight size={12} style={{ color: 'var(--warning-400)' }} />
-                                {Number(formatEther(w.amount)).toFixed(4)} ETH
+                                {formatUsdc(w.amount).toFixed(2)} USDC
                               </span>
                             </td>
                             <td>
@@ -532,9 +671,15 @@ export default function TransparencyPage() {
                               {txHash ? (
                                 <div className="hash-cell">
                                   <Hash size={10} className="hash-icon" />
-                                  <span className="hash-text monospace" title={txHash}>
-                                    {shortHash(txHash)}
-                                  </span>
+                                  {explorerUrl ? (
+                                    <a href={getTxUrl(txHash)} target="_blank" rel="noopener noreferrer" className="hash-text monospace" style={{ color: 'var(--primary-400)', textDecoration: 'none' }} title={txHash}>
+                                      {shortHash(txHash)}
+                                    </a>
+                                  ) : (
+                                    <span className="hash-text monospace" title={txHash}>
+                                      {shortHash(txHash)}
+                                    </span>
+                                  )}
                                   <button
                                     className="copy-tiny"
                                     onClick={() => copyText(txHash, `whash-${i}`)}
@@ -584,7 +729,7 @@ export default function TransparencyPage() {
                 <div className="trans-detail-row">
                   <span className="trans-detail-label">Wallet Address</span>
                   <div className="modal-addr-row">
-                    <span className="trans-detail-value monospace modal-addr-text">
+                    <span className="trans-detail-value monospace modal-addr-text" title={selectedDonation.donor}>
                       {selectedDonation.donor}
                     </span>
                     <button className="copy-tiny" onClick={() => copyText(selectedDonation.donor, 'modal-addr')} title="Salin address">
@@ -603,7 +748,7 @@ export default function TransparencyPage() {
                 <div className="trans-detail-row">
                   <span className="trans-detail-label">Jumlah Donasi</span>
                   <span className="trans-detail-value" style={{ color: 'var(--success-400)' }}>
-                    {Number(formatEther(selectedDonation.amount)).toFixed(4)} ETH
+                    {formatUsdc(selectedDonation.amount).toFixed(2)} USDC
                   </span>
                 </div>
 
@@ -623,9 +768,15 @@ export default function TransparencyPage() {
                     <span className="trans-detail-label">Tx Hash</span>
                     <div className="modal-addr-row">
                       <div className="modal-hash-box">
-                        <span className="monospace modal-hash-text" title={formatHash(selectedDonation.txHash)}>
-                          {formatHash(selectedDonation.txHash)}
-                        </span>
+                        {explorerUrl ? (
+                          <a href={getTxUrl(formatHash(selectedDonation.txHash))} target="_blank" rel="noopener noreferrer" className="monospace modal-hash-text" style={{ color: 'var(--primary-400)', textDecoration: 'none' }} title={formatHash(selectedDonation.txHash)}>
+                            {formatHash(selectedDonation.txHash)}
+                          </a>
+                        ) : (
+                          <span className="monospace modal-hash-text" title={formatHash(selectedDonation.txHash)}>
+                            {formatHash(selectedDonation.txHash)}
+                          </span>
+                        )}
                       </div>
                       <button
                         className="copy-tiny"
@@ -686,7 +837,7 @@ export default function TransparencyPage() {
                 <div className="trans-detail-row">
                   <span className="trans-detail-label">Kreator (Owner)</span>
                   <div className="modal-addr-row">
-                    <span className="trans-detail-value monospace modal-addr-text">
+                    <span className="trans-detail-value monospace modal-addr-text" title={selectedCampaign.owner}>
                       {selectedCampaign.owner}
                     </span>
                     <button className="copy-tiny" onClick={() => copyText(selectedCampaign.owner, 'modal-camp-owner')} title="Salin address">
@@ -697,15 +848,15 @@ export default function TransparencyPage() {
 
                 <div className="trans-detail-row">
                   <span className="trans-detail-label">Target Dana</span>
-                  <span className="trans-detail-value">{Number(formatEther(selectedCampaign.targetAmount)).toFixed(4)} ETH</span>
+                  <span className="trans-detail-value">{formatUsdc(selectedCampaign.targetAmount).toFixed(2)} USDC</span>
                 </div>
 
                 <div className="trans-detail-row">
                   <span className="trans-detail-label">Terkumpul</span>
                   <span className="trans-detail-value" style={{ color: 'var(--success-400)' }}>
-                    {Number(formatEther(selectedCampaign.raisedAmount)).toFixed(4)} ETH
+                    {formatUsdc(selectedCampaign.raisedAmount).toFixed(2)} USDC
                     <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
-                      ({Math.min((Number(formatEther(selectedCampaign.raisedAmount)) / Number(formatEther(selectedCampaign.targetAmount))) * 100, 100).toFixed(1)}%)
+                      ({Math.min((formatUsdc(selectedCampaign.raisedAmount) / formatUsdc(selectedCampaign.targetAmount)) * 100, 100).toFixed(1)}%)
                     </span>
                   </span>
                 </div>
@@ -725,7 +876,7 @@ export default function TransparencyPage() {
                   </span>
                 </div>
 
-                <div className="trans-detail-row" style={{ borderBottom: 'none' }}>
+                <div className="trans-detail-row">
                   <span className="trans-detail-label">Status</span>
                   <span className="trans-detail-value">
                     <span className={`status-badge ${selectedCampaign.isActive && (Number(selectedCampaign.deadline) * 1000 > Date.now()) ? 'active' : 'inactive'}`}>
@@ -733,6 +884,34 @@ export default function TransparencyPage() {
                     </span>
                   </span>
                 </div>
+
+                {/* Tx Hash */}
+                {formatHash(selectedCampaign.txHash) && (
+                  <div className="trans-detail-row" style={{ borderBottom: 'none' }}>
+                    <span className="trans-detail-label">Tx Hash Pembuatan</span>
+                    <div className="modal-addr-row">
+                      <div className="modal-hash-box">
+                        {explorerUrl ? (
+                          <a href={getTxUrl(formatHash(selectedCampaign.txHash))} target="_blank" rel="noopener noreferrer" className="monospace modal-hash-text" style={{ color: 'var(--primary-400)', textDecoration: 'none' }} title={formatHash(selectedCampaign.txHash)}>
+                            {formatHash(selectedCampaign.txHash)}
+                          </a>
+                        ) : (
+                          <span className="monospace modal-hash-text" title={formatHash(selectedCampaign.txHash)}>
+                            {formatHash(selectedCampaign.txHash)}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        className="copy-tiny"
+                        onClick={() => copyText(formatHash(selectedCampaign.txHash), 'modal-camp-hash')}
+                        title="Salin hash"
+                        style={{ flexShrink: 0 }}
+                      >
+                        {copiedHash === 'modal-camp-hash' ? <CheckCircle size={12} style={{ color: 'var(--success-400)' }} /> : <Copy size={12} />}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -763,7 +942,7 @@ export default function TransparencyPage() {
                 <div className="trans-detail-row">
                   <span className="trans-detail-label">Penerima Dana</span>
                   <div className="modal-addr-row">
-                    <span className="trans-detail-value monospace modal-addr-text">
+                    <span className="trans-detail-value monospace modal-addr-text" title={selectedWithdrawal.recipient}>
                       {selectedWithdrawal.recipient}
                     </span>
                     <button className="copy-tiny" onClick={() => copyText(selectedWithdrawal.recipient, 'modal-with-recp')} title="Salin address">
@@ -775,7 +954,7 @@ export default function TransparencyPage() {
                 <div className="trans-detail-row">
                   <span className="trans-detail-label">Jumlah Ditarik</span>
                   <span className="trans-detail-value" style={{ color: 'var(--warning-400)' }}>
-                    {Number(formatEther(selectedWithdrawal.amount)).toFixed(4)} ETH
+                    {formatUsdc(selectedWithdrawal.amount).toFixed(2)} USDC
                   </span>
                 </div>
 
@@ -794,9 +973,15 @@ export default function TransparencyPage() {
                     <span className="trans-detail-label">Tx Hash</span>
                     <div className="modal-addr-row">
                       <div className="modal-hash-box">
-                        <span className="monospace modal-hash-text" title={formatHash(selectedWithdrawal.txHash)}>
-                          {formatHash(selectedWithdrawal.txHash)}
-                        </span>
+                        {explorerUrl ? (
+                          <a href={getTxUrl(formatHash(selectedWithdrawal.txHash))} target="_blank" rel="noopener noreferrer" className="monospace modal-hash-text" style={{ color: 'var(--primary-400)', textDecoration: 'none' }} title={formatHash(selectedWithdrawal.txHash)}>
+                            {formatHash(selectedWithdrawal.txHash)}
+                          </a>
+                        ) : (
+                          <span className="monospace modal-hash-text" title={formatHash(selectedWithdrawal.txHash)}>
+                            {formatHash(selectedWithdrawal.txHash)}
+                          </span>
+                        )}
                       </div>
                       <button
                         className="copy-tiny"

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWeb3 } from '../context/Web3Context';
+import { saveUserProfile } from '../api';
 import toast from 'react-hot-toast';
 import {
   UserPlus, Wallet, Heart, Building2, CheckCircle, Shield,
-  Zap, ArrowRight, ArrowLeft, Sparkles, Globe, Lock, User, Mail
+  Zap, ArrowRight, ArrowLeft, Sparkles, Globe, Lock, User, Mail, AlertCircle, X
 } from 'lucide-react';
 import './RegisterPage.css';
 
@@ -78,12 +79,64 @@ export default function RegisterPage() {
       
       localStorage.setItem(`donationUser_${account}`, JSON.stringify(userData));
 
+      // Simpan juga ke MongoDB agar bisa diakses dari perangkat lain (HP, dll)
+      await saveUserProfile(userData);
+
       await refreshUser();
-      toast.success('✅ Registrasi berhasil!', { id: toastId, duration: 5000 });
+      toast.custom((t) => (
+        <div style={{
+          opacity: t.visible ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+          transform: t.visible ? 'translateY(0) scale(1)' : 'translateY(-20px) scale(0.95)',
+          background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid rgba(16, 185, 129, 0.3)',
+          borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px',
+          boxShadow: '0 20px 40px -10px rgba(16, 185, 129, 0.15)', minWidth: '300px', pointerEvents: 'auto'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ background: 'rgba(16, 185, 129, 0.15)', padding: '8px', borderRadius: '12px', display: 'flex' }}>
+              <CheckCircle size={22} style={{ color: '#34d399' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Registrasi Berhasil!</h4>
+              <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', marginTop: '2px' }}>Selamat datang di platform</p>
+            </div>
+            <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: '50%' }}>
+              <X size={16} />
+            </button>
+          </div>
+          <div style={{ background: 'rgba(0, 0, 0, 0.2)', borderRadius: '10px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ color: '#cbd5e1', fontSize: '13px' }}>Peran Terdaftar</span>
+            <strong style={{ color: '#10b981', fontSize: '13px' }}>{form.role === 'donor' ? 'Donatur' : 'Penggalang Dana'}</strong>
+          </div>
+        </div>
+      ), { id: toastId, duration: 6000 });
       navigate(form.role === 'recipient' ? '/create' : '/campaigns');
     } catch (err) {
       const msg = err.reason || err.message || 'Gagal mendaftar';
-      toast.error(msg.slice(0, 100), { id: toastId });
+      toast.custom((t) => (
+        <div style={{
+          opacity: t.visible ? 1 : 0, transition: 'transform 0.3s ease, opacity 0.3s ease',
+          transform: t.visible ? 'scale(1)' : 'scale(0.95)',
+          background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid rgba(239, 68, 68, 0.3)',
+          borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px',
+          boxShadow: '0 20px 40px -10px rgba(239, 68, 68, 0.15)', minWidth: '300px', pointerEvents: 'auto'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.15)', padding: '8px', borderRadius: '12px', display: 'flex' }}>
+              <AlertCircle size={22} style={{ color: '#f87171' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Pendaftaran Gagal</h4>
+              <p style={{ margin: 0, fontSize: '13px', color: '#f87171', marginTop: '2px' }}>Gagal memverifikasi identitas</p>
+            </div>
+            <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: '50%' }}>
+              <X size={16} />
+            </button>
+          </div>
+          <div style={{ background: 'rgba(0, 0, 0, 0.2)', borderRadius: '10px', padding: '12px', borderLeft: '3px solid #ef4444' }}>
+            <span style={{ color: '#cbd5e1', fontSize: '13px', lineHeight: '1.4' }}>{msg.slice(0, 100)}</span>
+          </div>
+        </div>
+      ), { id: toastId, duration: 8000 });
       console.error(err);
     } finally {
       setLoading(false);

@@ -26,7 +26,8 @@
 /* ── Thumbnail ─────────────────────────────────────────────── */
 .campaign-thumbnail {
   position: relative;
-  height: 180px;
+  aspect-ratio: 16 / 9;
+  width: 100%;
   background: linear-gradient(135deg, #1a1f35, #0f1420);
   display: flex;
   align-items: center;

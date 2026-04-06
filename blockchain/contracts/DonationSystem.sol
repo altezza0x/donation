@@ -2,18 +2,30 @@
 pragma solidity ^0.8.24;
 
 /**
+ * @title IERC20
+ * @dev Interface minimal ERC-20 yang dibutuhkan oleh DonationSystem
+ */
+interface IERC20 {
+    function transfer(address to, uint256 amount) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
+    function allowance(address owner, address spender) external view returns (uint256);
+}
+
+/**
  * @title DonationSystem
  * @dev Smart contract untuk sistem donasi digital berbasis blockchain
  * @notice Implementasi untuk skripsi: "Implementasi Teknologi Blockchain pada
  *         Prototype Sistem Donasi Digital Berbasis Web untuk Menjamin Transparansi Transaksi"
+ * @notice Menggunakan Mock USDC (ERC-20) sebagai token pembayaran, bukan native ETH
  */
 contract DonationSystem {
     // ========== STRUCTS ==========
 
     struct Campaign {
         uint256 id;
-        address payable owner;
-        address payable beneficiary;
+        address owner;
+        address beneficiary;
         string title;
         string description;
         string category;
@@ -38,7 +50,7 @@ contract DonationSystem {
         bytes32 txHash;
     }
 
-    // Struct baru untuk riwayat penarikan dana
+    // Struct untuk riwayat penarikan dana
     struct Withdrawal {
         uint256 id;
         uint256 campaignId;
@@ -53,10 +65,17 @@ contract DonationSystem {
     // ========== STATE VARIABLES ==========
 
     address public owner;
+    IERC20 public usdcToken; // Mock USDC token address
     uint256 public platformFee = 0; // 0% fee untuk prototype
     uint256 private campaignCounter;
     uint256 private donationCounter;
     uint256 private withdrawalCounter;
+
+    // Menyembunyikan pesan error <unrecognized-selector> di konsol Hardhat
+    // Wagmi/MetaMask sering melakukan probe ke contract ini.
+    fallback() external {
+        // Do nothing
+    }
 
     mapping(address => bool) public verifiedCreators;
 
@@ -126,8 +145,12 @@ contract DonationSystem {
 
     // ========== CONSTRUCTOR ==========
 
-    constructor() {
+    /**
+     * @param _usdcToken Address dari kontrak Mock USDC
+     */
+    constructor(address _usdcToken) {
         owner = msg.sender;
+        usdcToken = IERC20(_usdcToken);
     }
 
     // ========== CAMPAIGN FUNCTIONS ==========
@@ -142,7 +165,7 @@ contract DonationSystem {
         string memory _imageUrl,
         uint256 _targetAmount,
         uint256 _durationDays,
-        address payable _beneficiary
+        address _beneficiary
     ) external onlyVerifiedCreator returns (uint256) {
         require(bytes(_title).length > 0, "Judul tidak boleh kosong");
         require(_targetAmount > 0, "Target donasi harus lebih dari 0");
@@ -155,7 +178,7 @@ contract DonationSystem {
 
         campaigns[newCampaignId] = Campaign({
             id: newCampaignId,
-            owner: payable(msg.sender),
+            owner: msg.sender,
             beneficiary: _beneficiary,
             title: _title,
             description: _description,
@@ -216,20 +239,29 @@ contract DonationSystem {
     // ========== DONATION FUNCTIONS ==========
 
     /**
-     * @dev Melakukan donasi ke kampanye
+     * @dev Melakukan donasi ke kampanye menggunakan USDC
+     * @notice Donor harus terlebih dahulu memanggil USDC.approve(contractAddress, amount)
      */
     function donate(
         uint256 _campaignId,
         string memory _donorName,
-        string memory _message
-    ) external payable campaignExists(_campaignId) campaignActive(_campaignId) {
-        require(msg.value > 0, "Jumlah donasi harus lebih dari 0");
+        string memory _message,
+        uint256 _amount
+    ) external campaignExists(_campaignId) campaignActive(_campaignId) {
+        require(_amount > 0, "Jumlah donasi harus lebih dari 0");
+        require(
+            usdcToken.allowance(msg.sender, address(this)) >= _amount,
+            "Allowance USDC tidak cukup. Silakan approve terlebih dahulu."
+        );
+
+        bool success = usdcToken.transferFrom(msg.sender, address(this), _amount);
+        require(success, "Transfer USDC gagal");
 
         donationCounter++;
         uint256 newDonationId = donationCounter;
 
         Campaign storage campaign = campaigns[_campaignId];
-        campaign.raisedAmount += msg.value;
+        campaign.raisedAmount += _amount;
         campaign.donorCount++;
 
         Donation memory newDonation = Donation({
@@ -237,7 +269,7 @@ contract DonationSystem {
             campaignId: _campaignId,
             donor: msg.sender,
             donorName: bytes(_donorName).length > 0 ? _donorName : "Anonim",
-            amount: msg.value,
+            amount: _amount,
             message: _message,
             timestamp: block.timestamp,
             txHash: blockhash(block.number - 1)
@@ -247,7 +279,7 @@ contract DonationSystem {
         campaignDonations[_campaignId].push(newDonation);
         userDonationIds[msg.sender].push(newDonationId);
 
-        emit DonationMade(newDonationId, _campaignId, msg.sender, msg.value, block.timestamp);
+        emit DonationMade(newDonationId, _campaignId, msg.sender, _amount, block.timestamp);
     }
 
     /**
@@ -288,7 +320,7 @@ contract DonationSystem {
     // ========== WITHDRAWAL FUNCTIONS ==========
 
     /**
-     * @dev Menarik dana kampanye (hanya pemilik kampanye)
+     * @dev Menarik dana kampanye dalam bentuk USDC (hanya pemilik kampanye)
      * Mencatat riwayat penarikan untuk transparansi
      */
     function withdrawFunds(uint256 _campaignId, string memory _withdrawalPurpose)
@@ -327,7 +359,9 @@ contract DonationSystem {
         withdrawalIds.push(newWithdrawalId);
         campaignWithdrawalId[_campaignId] = newWithdrawalId;
 
-        campaign.beneficiary.transfer(amount);
+        // Transfer USDC ke beneficiary
+        bool success = usdcToken.transfer(campaign.beneficiary, amount);
+        require(success, "Transfer USDC ke penerima gagal");
 
         emit FundsWithdrawn(_campaignId, campaign.beneficiary, amount, block.timestamp);
     }
@@ -390,6 +424,13 @@ contract DonationSystem {
         activeCampaigns = active;
     }
 
+    /**
+     * @dev Mendapatkan saldo USDC yang tersimpan di kontrak ini
+     */
+    function getContractBalance() external view returns (uint256) {
+        return usdcToken.balanceOf(address(this));
+    }
+
     // ========== ADMIN FUNCTIONS ==========
 
     /**
@@ -424,15 +465,4 @@ contract DonationSystem {
     function getDonationCount() external view returns (uint256) {
         return donationCounter;
     }
-
-    /**
-     * @dev Mendapatkan saldo kontrak
-     */
-    function getContractBalance() external view returns (uint256) {
-        return address(this).balance;
-    }
-
-    // ========== FALLBACK ==========
-
-    receive() external payable {}
 }

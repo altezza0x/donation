@@ -1,0 +1,358 @@
+.faucet-page {
+  padding: 80px 0;
+  min-height: calc(100vh - 80px);
+}
+
+.faucet-hero {
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto 60px;
+}
+
+.faucet-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: var(--radius-full);
+  color: var(--primary-400);
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+.faucet-title {
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 800;
+  letter-spacing: -1.5px;
+  margin-bottom: 20px;
+}
+
+.faucet-desc {
+  font-size: 16px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.faucet-card {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 40px;
+  border-radius: 28px;
+  box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.3);
+}
+
+.faucet-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
+}
+
+.wallet-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.refresh-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.refresh-btn.spinning svg {
+  animation: spin 1s linear infinite;
+}
+
+.balance-section {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.balance-label {
+  font-size: 14px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.balance-value {
+  font-size: 48px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.balance-value .currency {
+  font-size: 18px;
+  color: var(--primary-400);
+  margin-left: 8px;
+}
+
+.faucet-info-box {
+  display: flex;
+  gap: 16px;
+  padding: 24px;
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  border-radius: 20px;
+  margin-bottom: 32px;
+}
+
+.info-icon {
+  color: var(--primary-400);
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.info-text strong {
+  display: block;
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.info-text p {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.faucet-submit-btn {
+  width: 100%;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: linear-gradient(135deg, var(--primary-600), var(--primary-500));
+  color: white;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 16px 32px -8px rgba(99, 102, 241, 0.4);
+}
+
+.faucet-submit-btn:hover:not(:disabled) {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 48px -12px rgba(99, 102, 241, 0.5);
+}
+
+.faucet-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.faucet-not-connected {
+  text-align: center;
+  padding: 20px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.mint-success-msg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.tx-link {
+  color: var(--primary-400);
+  text-decoration: none;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tx-link:hover {
+  text-decoration: underline;
+}
+
+.faucet-faq {
+  max-width: 560px;
+  margin: 60px auto 0;
+  display: grid;
+  gap: 32px;
+}
+
+.faq-item h4 {
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.faq-item p {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.spinner-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.faucet-tabs-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+
+.faucet-tabs {
+  display: flex;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 6px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-subtle);
+  gap: 4px;
+}
+
+.faucet-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.faucet-tab:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.faucet-tab.active {
+  background: var(--primary-600);
+  color: white;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.eth-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: var(--radius-lg);
+  color: #fbbf24;
+  font-size: 13px;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.faucet-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.external-faucet-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.external-faucet-card:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--primary-400);
+  transform: translateY(-2px);
+}
+
+.ef-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ef-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.ef-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.external-faucet-card svg {
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+.external-faucet-card:hover svg {
+  color: var(--primary-400);
+}
+
+.animate-fade {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .faucet-card {
+    padding: 30px 20px;
+  }
+  .balance-value {
+    font-size: 36px;
+  }
+  .faucet-grid {
+    grid-template-columns: 1fr;
+  }
+}
