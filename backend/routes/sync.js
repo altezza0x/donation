@@ -31,36 +31,36 @@ router.post('/', async (req, res) => {
     // --- CHECKPOINTING ---
     const DEFAULT_START_BLOCK = 5570000n; // Sepolia block waktu contract di-deploy
     let syncState = await SyncState.findOne({ contractAddress: contractAddress.toLowerCase() });
-    
+
     let fromBlock = DEFAULT_START_BLOCK;
     if (syncState && BigInt(syncState.lastSyncedBlock) > DEFAULT_START_BLOCK) {
       fromBlock = BigInt(syncState.lastSyncedBlock) + 1n; // Mulai dari blok setelahnya
     }
 
     const latestBlock = await client.getBlockNumber();
-    
+
     // Jika tidak ada blok baru, langsung return
     if (fromBlock > latestBlock) {
-       return res.json({ success: true, message: 'Blockchain sudah sinkron.', stats: { found: 0, latestBlock: latestBlock.toString() } });
+      return res.json({ success: true, message: 'Blockchain sudah sinkron.', stats: { found: 0, latestBlock: latestBlock.toString() } });
     }
 
     console.log(`[SYNC] Memindai dari blok ${fromBlock.toString()} sampai ${latestBlock.toString()}`);
 
     // --- PARALLEL FETCHING ---
-    const allEventsPromises = eventsAbi.map(eventAbi => 
-       client.getLogs({
-         address: contractAddress,
-         event: eventAbi,
-         fromBlock: fromBlock,
-         toBlock: latestBlock
-       }).catch(e => {
-         console.warn(`[SYNC] Error fetching logs for event:`, e.message);
-         return [];
-       })
+    const allEventsPromises = eventsAbi.map(eventAbi =>
+      client.getLogs({
+        address: contractAddress,
+        event: eventAbi,
+        fromBlock: fromBlock,
+        toBlock: latestBlock
+      }).catch(e => {
+        console.warn(`[SYNC] Error fetching logs for event:`, e.message);
+        return [];
+      })
     );
 
     const [campaignLogs, donationLogs, withdrawalLogs] = await Promise.all(allEventsPromises);
-    
+
     console.log(`[SYNC] Ditemukan: ${campaignLogs.length} kampanye, ${donationLogs.length} donasi, ${withdrawalLogs.length} penarikan.`);
 
     // --- BULK DATABASE UPDATES ---
@@ -116,15 +116,15 @@ router.post('/', async (req, res) => {
 
     console.log(`[SYNC] Selesai. Blok terakhir: ${latestBlock.toString()}`);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       stats: {
         totalFound: campaignLogs.length + donationLogs.length + withdrawalLogs.length,
         campaigns: campaignLogs.length,
         donations: donationLogs.length,
         withdrawals: withdrawalLogs.length,
         syncedToBlock: latestBlock.toString()
-      } 
+      }
     });
 
   } catch (err) {

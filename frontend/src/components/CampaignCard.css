@@ -28,21 +28,13 @@
   position: relative;
   aspect-ratio: 16 / 9;
   width: 100%;
-  background: linear-gradient(135deg, #1a1f35, #0f1420);
+  background-color: #0f1420;
+  background-image: radial-gradient(ellipse at 30% 40%, rgba(99, 102, 241, 0.18), transparent 65%), linear-gradient(135deg, #1a1f35, #0f1420);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   flex-shrink: 0;
-}
-
-/* subtle noise overlay for no-image state */
-.campaign-thumbnail::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at 30% 40%, rgba(99, 102, 241, 0.18), transparent 65%);
-  pointer-events: none;
 }
 
 .campaign-emoji {

@@ -195,11 +195,15 @@
   gap: 4px;
   margin-bottom: 20px;
   border-bottom: 1px solid var(--border-subtle);
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE/Edge */
 }
+
 .profile-tabs::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
+  display: none;
+  /* Chrome/Safari */
 }
 
 .profile-tab {

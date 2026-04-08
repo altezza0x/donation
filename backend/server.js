@@ -7,6 +7,7 @@ const txRoutes = require('./routes/tx');
 const userRoutes = require('./routes/users');
 const uploadRoutes = require('./routes/upload');
 const syncRoutes = require('./routes/sync');
+const faucetRoutes = require('./routes/faucet');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -36,6 +37,7 @@ app.use('/api/tx', txRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/sync', syncRoutes);
+app.use('/api/faucet', faucetRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

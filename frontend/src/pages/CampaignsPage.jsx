@@ -175,7 +175,7 @@ export default function CampaignsPage() {
         {/* Results info */}
         {!loading && (
           <p className="results-count">
-            Menampilkan <strong>{filtered.length}</strong> kampanye
+            Menampilkan&nbsp;<strong>{filtered.length}</strong>&nbsp;kampanye
             {category !== 'Semua' && ` di kategori ${category}`}
             {search && ` untuk "${search}"`}
           </p>

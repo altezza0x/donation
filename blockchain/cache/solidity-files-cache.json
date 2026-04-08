@@ -2,7 +2,7 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "E:\\hardhat\\blockchain\\contracts\\DonationSystem.sol": {
-      "lastModificationDate": 1775439322118,
+      "lastModificationDate": 1775579359556,
       "contentHash": "f19eb89c1981174caa750d56b011f1a0",
       "sourceName": "contracts/DonationSystem.sol",
       "solcConfig": {

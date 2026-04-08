@@ -6,8 +6,9 @@ import { getAllTxHashes } from '../api';
 import {
   BarChart3, TrendingUp, Users, Heart, Globe, Shield,
   ExternalLink, Copy, RefreshCw, Search, Clock, CheckCircle,
-  Wallet, ArrowUpRight, X, Hash, ChevronLeft, ChevronRight, User, LayoutGrid
+  Wallet, ArrowUpRight, X, Hash, ChevronLeft, ChevronRight, User, LayoutGrid, BadgeCheck
 } from 'lucide-react';
+import { API_BASE } from '../api';
 import './TransparencyPage.css';
 
 // Format bytes32 txHash → kembalikan full hex string yang valid
@@ -99,6 +100,7 @@ export default function TransparencyPage() {
   const [allDonations, setAllDonations] = useState([]);
   const [allCampaigns, setAllCampaigns] = useState([]);
   const [allWithdrawals, setAllWithdrawals] = useState([]);
+  const [allWhitelisted, setAllWhitelisted] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTx, setSearchTx] = useState('');
@@ -124,11 +126,12 @@ export default function TransparencyPage() {
     }
 
     try {
-      const [platformStats, donations, campaigns, withdrawalsList] = await Promise.all([
+      const [platformStats, donations, campaigns, withdrawalsList, usersData] = await Promise.all([
         readOnlyContract.getPlatformStats(),
         readOnlyContract.getAllDonations(),
         readOnlyContract.getAllCampaigns(),
         readOnlyContract.getAllWithdrawals(),
+        fetch(`${API_BASE}/users`).then(res => res.ok ? res.json() : null).catch(() => null)
       ]);
 
       let realTxHashMap = {};
@@ -136,10 +139,10 @@ export default function TransparencyPage() {
         try {
           const isSepolia = networkId === '11155111';
           let fromBlock = 0n;
-          
+
           if (isSepolia) {
-             const currentBlock = await provider.getBlockNumber().catch(() => 5000000n);
-             fromBlock = currentBlock > 90000n ? currentBlock - 90000n : 0n;
+            const currentBlock = await provider.getBlockNumber().catch(() => 5000000n);
+            fromBlock = currentBlock > 90000n ? currentBlock - 90000n : 0n;
           }
 
           const [donationLogs, withdrawLogs, campaignLogs] = await Promise.all([
@@ -184,7 +187,7 @@ export default function TransparencyPage() {
 
       // Fetch from MongoDB
       const mongoHashes = await getAllTxHashes();
-      
+
       // Update global realTxHashMap with verified mongo hashes
       // Tipe: 'campaign', 'donation', 'withdrawal'
       mongoHashes.forEach(item => {
@@ -220,9 +223,24 @@ export default function TransparencyPage() {
         activeCampaigns: Number(platformStats[3]),
       });
 
+      let whitelisted = [];
+      if (usersData && usersData.data) {
+        const checks = usersData.data.map(async (u) => {
+          try {
+            if (!u.wallet || !/^0x[a-fA-F0-9]{40}$/.test(u.wallet)) return null;
+            const isWl = await readOnlyContract.verifiedCreators(u.wallet);
+            return isWl ? u : null;
+          } catch (e) {
+            return null;
+          }
+        });
+        whitelisted = (await Promise.all(checks)).filter(Boolean);
+      }
+
       setAllDonations([...verifiedDonations].reverse());
       setAllCampaigns([...verifiedCampaigns].reverse());
       setAllWithdrawals([...verifiedWithdrawals].reverse());
+      setAllWhitelisted([...whitelisted].reverse());
     } catch (err) {
       console.error('Error fetching transparency data:', err);
     } finally {
@@ -274,10 +292,18 @@ export default function TransparencyPage() {
       hash.toLowerCase().includes(q);
   }), [allWithdrawals, searchTx]);
 
+  const filteredWhitelisted = useMemo(() => allWhitelisted.filter(w => {
+    if (!searchTx) return true;
+    const q = searchTx.toLowerCase();
+    return (w.name && w.name.toLowerCase().includes(q)) ||
+      w.wallet.toLowerCase().includes(q);
+  }), [allWhitelisted, searchTx]);
+
   // Pagination hooks
   const donationPg = usePagination(filteredDonations);
   const campaignPg = usePagination(filteredCampaigns);
   const withdrawalPg = usePagination(filteredWithdrawals);
+  const whitelistPg = usePagination(filteredWhitelisted);
 
   // Explorer URL Helpers
   const isSepolia = networkId === '11155111';
@@ -391,6 +417,12 @@ export default function TransparencyPage() {
                 onClick={() => setTab('withdrawals')}
               >
                 <Wallet size={14} /> Penarikan Dana ({allWithdrawals.length})
+              </button>
+              <button
+                className={`trans-tab ${tab === 'whitelist' ? 'active' : ''}`}
+                onClick={() => setTab('whitelist')}
+              >
+                <BadgeCheck size={14} /> Daftar Whitelist ({allWhitelisted.length})
               </button>
             </div>
 
@@ -699,6 +731,86 @@ export default function TransparencyPage() {
                   </table>
                 </div>
                 <Pagination {...withdrawalPg} total={filteredWithdrawals.length} />
+              </div>
+            )}
+
+            {/* TABLE: Whitelist */}
+            {tab === 'whitelist' && (
+              <div className="trans-list-container">
+                <Pagination {...whitelistPg} total={filteredWhitelisted.length} />
+                <div className="trans-table-wrapper">
+                  <table className="trans-table">
+                    <thead>
+                      <tr>
+                        <th className="col-id" style={{ width: '80px' }}>No</th>
+                        <th className="col-name">Nama Otoritas</th>
+                        <th className="col-wallet">Wallet Address</th>
+                        <th className="col-amount" style={{ width: '130px' }}>Total Kampanye</th>
+                        <th className="col-amount" style={{ width: '140px' }}>Total Penarikan</th>
+                        <th className="col-status">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {whitelistPg.paged.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="empty-cell">
+                            {allWhitelisted.length === 0
+                              ? 'Belum ada akun di whitelist'
+                              : 'Tidak ada hasil pencarian'}
+                          </td>
+                        </tr>
+                      ) : whitelistPg.paged.map((w, i) => {
+                        const userWithdrawals = allWithdrawals.filter(wd => wd.recipient.toLowerCase() === w.wallet.toLowerCase());
+                        const totalWithdrawn = userWithdrawals.reduce((sum, curr) => sum + Number(formatUsdc(curr.amount)), 0);
+                        const userCampaignsCount = allCampaigns.filter(camp => camp.owner.toLowerCase() === w.wallet.toLowerCase()).length;
+
+                        return (
+                          <tr key={i} className="trans-row">
+                            <td>
+                              <span className="id-badge">{(whitelistPg.page - 1) * whitelistPg.pageSize + i + 1}</span>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <BadgeCheck size={16} style={{ color: 'var(--success-400)' }} />
+                                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{w.name || 'Anonim'}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="wallet-cell">
+                                <span className="addr monospace">{w.wallet}</span>
+                                <button className="copy-tiny" onClick={() => copyText(w.wallet, `wlt-${i}`)}>
+                                  {copiedHash === `wlt-${i}` ? <CheckCircle size={10} style={{ color: 'var(--success-400)' }} /> : <Copy size={10} />}
+                                </button>
+                              </div>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{userCampaignsCount}</span>
+                                <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>Kampanye</span>
+                              </div>
+                            </td>
+                            <td>
+                              <span className="amount-cell withdrawal-amount">
+                                {totalWithdrawn > 0 ? (
+                                  <>
+                                    <ArrowUpRight size={12} style={{ color: 'var(--warning-400)' }} />
+                                    {totalWithdrawn.toFixed(2)} USDC
+                                  </>
+                                ) : (
+                                  <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>0.00 USDC</span>
+                                )}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="status-badge active">Verified</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination {...whitelistPg} total={filteredWhitelisted.length} />
               </div>
             )}
           </>

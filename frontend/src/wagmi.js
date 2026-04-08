@@ -9,15 +9,24 @@ import {
   coinbaseWallet,
   ledgerWallet,
   okxWallet,
-  zerionWallet
+  zerionWallet,
+  rainbowWallet,
+  rabbyWallet
 } from '@rainbow-me/rainbowkit/wallets';
 
 // Deteksi network dari .env
 const networkId = parseInt(import.meta.env.VITE_NETWORK_ID || '31337');
 const isTestnet = networkId === 11155111;
 
+// Override ikon Sepolia agar terlihat lebih bagus di modal RainbowKit
+const sepoliaCustom = {
+  ...sepolia,
+  iconUrl: 'https://assets.coingecko.com/coins/images/279/small/ethereum.png',
+  iconBackground: '#ffffff',
+};
+
 // Gunakan chain yang sesuai
-const activeChain = isTestnet ? sepolia : hardhat;
+const activeChain = isTestnet ? sepoliaCustom : hardhat;
 
 // RPC URL
 const rpcUrl = isTestnet
@@ -29,7 +38,7 @@ const connectors = connectorsForWallets(
   [
     {
       groupName: 'Rekomendasi',
-      wallets: [metaMaskWallet, trustWallet, okxWallet, walletConnectWallet],
+      wallets: [rainbowWallet, metaMaskWallet, rabbyWallet, trustWallet, okxWallet, walletConnectWallet],
     },
     {
       groupName: 'Lainnya',
@@ -38,7 +47,7 @@ const connectors = connectorsForWallets(
   ],
   {
     appName: 'ChainDonate',
-    projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'chaindonate-local-dev',
+    projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'da146c62064c23627e38077de9004808',
   }
 );
 
@@ -51,7 +60,7 @@ export const config = createConfig({
   transports: {
     [activeChain.id]: http(rpcUrl),
   },
-  multiInjectedProviderDiscovery: false,
+  multiInjectedProviderDiscovery: true,
 });
 
 export { activeChain as chain };

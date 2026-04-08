@@ -453,7 +453,7 @@ select {
   padding: 6px 28px 6px 12px;
   background:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 8px center,
-    linear-gradient(160deg, rgba(30,41,59,0.9) 0%, rgba(15,23,42,0.95) 100%);
+    linear-gradient(160deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
   border: 1px solid rgba(99, 102, 241, 0.2);
   border-radius: 10px;
   color: var(--text-primary);
@@ -464,8 +464,8 @@ select {
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   box-shadow:
-    0 1px 0 rgba(255,255,255,0.05) inset,
-    0 3px 10px rgba(0,0,0,0.3);
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 3px 10px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   min-width: 56px;
@@ -475,16 +475,16 @@ select {
 .profile-pg-select:hover {
   border-color: rgba(99, 102, 241, 0.4);
   box-shadow:
-    0 1px 0 rgba(255,255,255,0.07) inset,
-    0 4px 14px rgba(0,0,0,0.35),
-    0 0 0 3px rgba(99,102,241,0.08);
+    0 1px 0 rgba(255, 255, 255, 0.07) inset,
+    0 4px 14px rgba(0, 0, 0, 0.35),
+    0 0 0 3px rgba(99, 102, 241, 0.08);
 }
 
 .pg-select:focus,
 .profile-pg-select:focus {
   border-color: rgba(99, 102, 241, 0.55);
   box-shadow:
-    0 1px 0 rgba(255,255,255,0.08) inset,
-    0 4px 16px rgba(0,0,0,0.4),
-    0 0 0 3px rgba(99,102,241,0.14);
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    0 0 0 3px rgba(99, 102, 241, 0.14);
 }

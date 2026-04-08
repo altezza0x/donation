@@ -73,7 +73,7 @@ const HOW_IT_WORKS = [
     step: '01',
     icon: MonitorSmartphone,
     title: 'Hubungkan Wallet',
-    desc: 'Sambungkan MetaMask ke platform ChainDonate. Proses cepat dan aman.',
+    desc: 'Sambungkan wallet ke platform ChainDonate. Proses cepat dan aman.',
     color: 'primary',
     accent: '#818cf8',
   },

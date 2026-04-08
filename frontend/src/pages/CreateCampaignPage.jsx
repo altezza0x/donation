@@ -81,7 +81,7 @@ export default function CreateCampaignPage() {
       const data = await res.json();
       setForm(prev => ({ ...prev, imageUrl: data.url }));
       toast.success('Gambar berhasil diunggah!', { id: toastId });
-      
+
     } catch (error) {
       if (error.name === 'AbortError') {
         toast.error('Upload dibatalkan', { id: toastId });
@@ -106,7 +106,7 @@ export default function CreateCampaignPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!isConnected) { toast.error('Hubungkan wallet MetaMask!'); return; }
+    if (!isConnected) { toast.error('Hubungkan wallet wallet!'); return; }
     if (!user?.isRegistered) { toast.error('Daftar akun terlebih dahulu!'); return; }
     if (!form.title.trim()) { toast.error('Judul tidak boleh kosong'); return; }
     if (!form.targetAmount || parseFloat(form.targetAmount) <= 0) { toast.error('Target donasi harus > 0'); return; }
@@ -259,7 +259,7 @@ export default function CreateCampaignPage() {
           <div className="create-gate">
             <div className="gate-icon"><Wallet size={40} /></div>
             <h2>Hubungkan Wallet Dulu</h2>
-            <p>Anda perlu menghubungkan MetaMask untuk membuat kampanye donasi.</p>
+            <p>Anda perlu menghubungkan wallet untuk membuat kampanye donasi.</p>
           </div>
         </div>
       </div>
@@ -295,7 +295,7 @@ export default function CreateCampaignPage() {
                 Wallet Anda tidak terdaftar sebagai <span className="nw-highlight">Verified Creator</span>.
               </p>
               <p className="nw-desc">
-                Platform hanya mengizinkan penggalangan dana oleh akun yang telah melewati verifikasi KYC oleh administrator. Silakan hubungi admin untuk informasi lebih lanjut.
+                Platform hanya mengizinkan penggalangan dana oleh akun yang telah melewati verifikasi oleh administrator. Silakan hubungi admin untuk informasi lebih lanjut.
               </p>
             </div>
 

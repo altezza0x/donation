@@ -39,6 +39,20 @@ router.post('/', async (req, res) => {
 });
 
 /*
+  GET /api/users
+  Ambil semua profil user
+*/
+router.get('/', async (req, res) => {
+  try {
+    const docs = await UserProfile.find({});
+    res.json({ success: true, data: docs });
+  } catch (err) {
+    console.error('GET /api/users error:', err.message);
+    res.status(500).json({ error: 'Gagal mengambil data users' });
+  }
+});
+
+/*
   GET /api/users/:wallet
   Ambil profil user berdasarkan wallet address
 */

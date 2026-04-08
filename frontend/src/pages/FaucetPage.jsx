@@ -1,219 +1,219 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useWeb3 } from '../context/Web3Context';
-import { formatUsdc, parseUsdc } from '../contracts/MockUSDC';
-import { Wallet, Droplets, ArrowRight, CheckCircle, AlertCircle, ExternalLink, RefreshCw, Coins, Zap } from 'lucide-react';
+import { parseUsdc } from '../contracts/MockUSDC';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useSafeConnect } from '../hooks/useSafeConnect';
+import { Wallet, CheckCircle, X, ExternalLink, AlertCircle, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { requestEthFaucet } from '../api';
 import './FaucetPage.css';
 
 export default function FaucetPage() {
-  const { account, isConnected, usdcContract, networkId, shortAddress, publicClient } = useWeb3();
-  const [usdcBalance, setUsdcBalance] = useState('0');
-  const [ethBalance, setEthBalance] = useState('0');
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastMintTx, setLastMintTx] = useState(null);
-  const [activeTab, setActiveTab] = useState('usdc');
+  const { account, isConnected, usdcContract, shortAddress, usdcAddress } = useWeb3();
+  const { openSafeConnectModal } = useSafeConnect();
+  const [loadingUsdc, setLoadingUsdc] = useState(false);
+  const [loadingEth, setLoadingEth] = useState(false);
+  const [lastUsdcTx, setLastUsdcTx] = useState(null);
+  const [lastEthTx, setLastEthTx] = useState(null);
 
-  const fetchBalances = async () => {
-    if (!account) return;
-    setRefreshing(true);
-    try {
-      // Fetch USDC
-      if (usdcContract) {
-        const b = await usdcContract.balanceOf(account);
-        setUsdcBalance(formatUsdc(b).toFixed(2));
-      }
-      // Fetch ETH
-      if (publicClient) {
-        const eb = await publicClient.getBalance({ address: account });
-        setEthBalance((Number(eb) / 1e18).toFixed(4));
-      }
-    } catch (err) {
-      console.error('Gagal ambil saldo:', err);
-    } finally {
-      setRefreshing(false);
-    }
+  const handleCopyAddress = (addr) => {
+    if (!addr) return;
+    navigator.clipboard.writeText(addr);
+    toast.success('Address disalin!', {
+      style: {
+        borderRadius: '10px',
+        background: '#1e293b',
+        color: '#fff',
+        fontSize: '13px'
+      },
+    });
   };
 
-  useEffect(() => {
-    fetchBalances();
-  }, [account, usdcContract, publicClient]);
+  // NOTIFIKASI STANDARD-SMALL (RINGKAS & ELEGAN)
+  const showSuccessToast = (title, amount, txHash, colorClass = 'success') => {
+    const isEth = colorClass === 'gold';
+    const primaryColor = isEth ? '#f59e0b' : '#34d399';
+    const bgGlow = isEth ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)';
 
-  const handleMint = async () => {
-    if (!isConnected) {
-      toast.error('Hubungkan wallet terlebih dahulu!');
-      return;
-    }
-    
-    setLoading(true);
-    const amount = parseUsdc(1000);
-    const toastId = toast.loading('Meminta 1,000 USDC dari faucet...');
+    toast.custom((t) => (
+      <div style={{
+        opacity: t.visible ? 1 : 0, transition: 'all 0.3s ease',
+        transform: t.visible ? 'translateY(0)' : 'translateY(-10px)',
+        background: 'rgba(15, 23, 42, 0.98)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: '12px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px',
+        boxShadow: `0 8px 24px -8px ${bgGlow}`, minWidth: '240px', maxWidth: '320px', pointerEvents: 'auto'
+      }}>
+        <CheckCircle size={18} style={{ color: primaryColor, flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#f8fafc' }}>{amount} Terkirim</p>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexShrink: 0 }}>
+          <a href={`https://sepolia.etherscan.io/tx/${txHash}`} target="_blank" rel="noreferrer" style={{ color: '#94a3b8' }}>
+            <ExternalLink size={14} />
+          </a>
+          <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '2px' }}>
+            <X size={16} />
+          </button>
+        </div>
+      </div>
+    ), { duration: 5000 });
+  };
 
+  const showErrorToast = (message) => {
+    toast.custom((t) => (
+      <div style={{
+        opacity: t.visible ? 1 : 0, transition: 'all 0.3s ease',
+        transform: t.visible ? 'translateY(0)' : 'translateY(-10px)',
+        background: 'rgba(23, 23, 35, 0.98)', border: '1px solid rgba(239, 68, 68, 0.2)',
+        borderRadius: '12px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px',
+        boxShadow: '0 8px 20px -10px rgba(239, 68, 68, 0.2)', minWidth: '240px', maxWidth: '320px', pointerEvents: 'auto'
+      }}>
+        <AlertCircle size={18} style={{ color: '#f87171', flexShrink: 0 }} />
+        <p style={{ margin: 0, fontSize: '12px', color: '#f8fafc', fontWeight: 500, lineHeight: '1.4', flex: 1 }}>{message}</p>
+        <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '2px' }}>
+          <X size={16} />
+        </button>
+      </div>
+    ), { duration: 5000 });
+  };
+
+  const handleMintUsdc = async () => {
+    if (!isConnected) return toast.error('Hubungkan wallet!');
+    setLoadingUsdc(true);
+    const toastId = toast.loading('Memproses...', { style: { fontSize: '13px' } });
     try {
-      const tx = await usdcContract.mint(account, amount);
-      toast.loading('Menunggu konfirmasi blockchain...', { id: toastId });
+      const tx = await usdcContract.mint(account, parseUsdc(1000));
       const receipt = await tx.wait();
-      setLastMintTx(receipt.transactionHash);
-      toast.success('1,000 USDC berhasil ditambahkan!', { id: toastId, duration: 6000 });
-      fetchBalances();
+      setLastUsdcTx(receipt.transactionHash);
+      toast.dismiss(toastId);
+      showSuccessToast('USDC', '1,000 USDC', receipt.transactionHash, 'blue');
     } catch (err) {
-      console.error('Mint error:', err);
-      const msg = err.message.toLowerCase().includes('owner') 
-        ? 'Kontrak Mock masih terkunci (Owner Only). Hubungi admin.' 
-        : (err.reason || 'Gagal mengambil USDC gratis.');
-      toast.error(msg, { id: toastId });
+      toast.dismiss(toastId);
+      showErrorToast(err.message.includes('owner') ? 'Admin Only' : 'Gagal cetak USDC');
     } finally {
-      setLoading(false);
+      setLoadingUsdc(false);
     }
   };
 
-  const externalFaucets = [
-    { name: 'Google Faucet', url: 'https://cloud.google.com/application/web3/faucet/ethereum/sepolia', desc: '0.05 Sepolia ETH harian' },
-    { name: 'Alchemy Faucet', url: 'https://sepoliafaucet.com/', desc: '0.5 Sepolia ETH (butuh login)' },
-    { name: 'Infura Faucet', url: 'https://www.infura.io/faucet/sepolia', desc: '0.1 Sepolia ETH harian' },
-    { name: 'QuickNode', url: 'https://faucet.quicknode.com/ethereum/sepolia', desc: 'Bantuan instan di Sepolia' },
-  ];
+  const handleRequestEth = async () => {
+    if (!isConnected) return toast.error('Hubungkan wallet!');
+    setLoadingEth(true);
+    const toastId = toast.loading('Memproses...', { style: { fontSize: '13px' } });
+    try {
+      const res = await requestEthFaucet(account);
+      setLastEthTx(res.txHash);
+      toast.dismiss(toastId);
+      showSuccessToast('ETH', '0.05 ETH', res.txHash, 'gold');
+    } catch (err) {
+      toast.dismiss(toastId);
+      const errorMsg = err.response?.data?.error || err.message || 'Gagal klaim ETH';
+      showErrorToast(errorMsg);
+    } finally {
+      setLoadingEth(false);
+    }
+  };
 
   return (
     <div className="faucet-page gradient-bg">
-      <div className="container">
-        <div className="faucet-hero">
-          <div className="faucet-chip">
-            <Droplets size={14} />
-            <span>Testnet Faucet Hub</span>
-          </div>
-          <h1 className="faucet-title">Pusat Bantuan <span className="gradient-text">Testing</span></h1>
-          <p className="faucet-desc">
-            Dapatkan saldo uji untuk berinteraksi dengan platform kami tanpa menggunakan aset sungguhan.
+      <div className="faucet-container">
+        {/* Top-Right External Links */}
+        <div className="faucet-external-nav">
+          <span className="nav-title">Official Faucets:</span>
+          <a href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia" target="_blank" rel="noreferrer">Google</a>
+          <a href="https://sepoliafaucet.com/" target="_blank" rel="noreferrer">Alchemy</a>
+          <a href="https://www.infura.io/faucet/sepolia" target="_blank" rel="noreferrer">Infura</a>
+        </div>
+
+        {/* Header Section */}
+        <header className="faucet-header text-center animate-fade-in">
+          <h1 className="faucet-title">Dapatkan <span className="gradient-text">Faucet</span></h1>
+          <p className="faucet-subtitle">
+            Gunakan Saldo Berikut Untuk Mencoba Fitur Pembuatan Kampanye Dan Donasi Menggunakan USDC Dan ETH Sepolia Untuk Gasfee.
           </p>
-        </div>
+        </header>
 
-        <div className="faucet-tabs-container">
-          <div className="faucet-tabs">
-            <button 
-              className={`faucet-tab ${activeTab === 'usdc' ? 'active' : ''}`}
-              onClick={() => setActiveTab('usdc')}
-            >
-              <Coins size={16} />
-              Mock USDC
-            </button>
-            <button 
-              className={`faucet-tab ${activeTab === 'eth' ? 'active' : ''}`}
-              onClick={() => setActiveTab('eth')}
-            >
-              <Droplets size={16} />
-              Sepolia ETH
-            </button>
-          </div>
-        </div>
-
-        <div className="faucet-card glass-card">
-          <div className="faucet-card-header">
-            <div className="wallet-pill">
-              <Wallet size={16} />
-              <span className="monospace">{isConnected ? shortAddress : 'Hubungkan Wallet'}</span>
+        {/* Faucet Grid */}
+        <div className="faucet-grid-modern animate-slide-up">
+          {/* Mock USDC Card */}
+          <div className="faucet-card-modern glass-card-hover">
+            <div className="faucet-icon-circle blue">
+              <img 
+                src="/usdc.png" 
+                alt="USDC Logo" 
+                className="faucet-logo-img"
+              />
             </div>
-            {isConnected && (
-              <button 
-                className={`refresh-btn ${refreshing ? 'spinning' : ''}`} 
-                onClick={fetchBalances} 
-                disabled={refreshing}
-                title="Update Saldo"
+            <div className="faucet-content">
+              <h3>USDC</h3>
+              <p>Token yang digunakan sebagai alat donasi utama di platform.</p>
+
+              <div className="faucet-stats">
+                <span>1,000 USDC / Klaim</span>
+              </div>
+
+              <div className="usdc-address-box" onClick={() => handleCopyAddress(usdcAddress)}>
+                <span className="address-label">Contract Address:</span>
+                <span className="address-value monospace">
+                  {usdcAddress?.slice(0, 10)}...{usdcAddress?.slice(-8)}
+                  <Copy size={13} style={{ marginLeft: 8, opacity: 0.6 }} />
+                </span>
+              </div>
+            </div>
+            <div className="faucet-footer-action">
+              <button
+                className="faucet-btn blue-btn"
+                onClick={isConnected ? handleMintUsdc : openSafeConnectModal}
+                disabled={loadingUsdc}
               >
-                <RefreshCw size={14} />
+                {loadingUsdc
+                  ? <span className="spinner"></span>
+                  : isConnected
+                    ? 'Mint 1,000 USDC'
+                    : <><Wallet size={15} style={{ marginRight: 6 }} />Hubungkan Wallet</>}
               </button>
-            )}
+              {lastUsdcTx && (
+                <a href={`https://sepolia.etherscan.io/tx/${lastUsdcTx}`} target="_blank" rel="noreferrer" className="tx-status-mini">
+                  Terkonfirmasi
+                </a>
+              )}
+            </div>
           </div>
 
-          <div className="faucet-main">
-            {activeTab === 'usdc' ? (
-              <div className="faucet-content animate-fade">
-                <div className="balance-section">
-                  <p className="balance-label">Saldo Mock USDC</p>
-                  <h2 className="balance-value">
-                    {Number(usdcBalance).toLocaleString()} <span className="currency">USDC</span>
-                  </h2>
-                </div>
-
-                <div className="mint-action">
-                  <div className="faucet-info-box">
-                    <Zap size={20} className="info-icon" />
-                    <div className="info-text">
-                      <strong>Cetak Langsung Ke Wallet</strong>
-                      <p>Dapatkan 1,000 USDC Mock seketika melalui kontrak kami.</p>
-                    </div>
-                  </div>
-
-                  {!isConnected ? (
-                    <div className="faucet-not-connected">
-                      <p>Hubungkan wallet untuk mencetak token USDC secara gratis.</p>
-                    </div>
-                  ) : (
-                    <button className="faucet-submit-btn" onClick={handleMint} disabled={loading}>
-                      {loading ? (
-                        <div className="spinner-wrap"><div className="spinner" /> <span>Sedang Diproses...</span></div>
-                      ) : (
-                        <><span>Ambil 1,000 USDC</span> <ArrowRight size={18} /></>
-                      )}
-                    </button>
-                  )}
-                </div>
+          {/* Sepolia ETH Card */}
+          <div className="faucet-card-modern glass-card-hover gold">
+            <div className="faucet-icon-circle gold">
+              <img 
+                src="/eth.png" 
+                alt="ETH Logo" 
+                className="faucet-logo-img"
+              />
+            </div>
+            <div className="faucet-content">
+              <h3>Sepolia ETH</h3>
+              <p>Bantuan gas fee gratis agar anda bisa langsung bertransaksi di jaringan testnet.</p>
+              <div className="faucet-stats">
+                <span>0.05 ETH / Klaim Sekali</span>
               </div>
-            ) : (
-              <div className="faucet-content animate-fade">
-                <div className="balance-section">
-                  <p className="balance-label">Saldo Sepolia ETH</p>
-                  <h2 className="balance-value">
-                    {ethBalance} <span className="currency">ETH</span>
-                  </h2>
-                </div>
-
-                <div className="eth-faucet-list">
-                  <p className="eth-notice">
-                    <AlertCircle size={14} />
-                    ETH diperlukan sebagai biaya gas (biaya jaringan) untuk setiap transaksi di Sepolia.
-                  </p>
-                  <div className="faucet-grid">
-                    {externalFaucets.map((f, i) => (
-                      <a key={i} href={f.url} target="_blank" rel="noreferrer" className="external-faucet-card">
-                        <div className="ef-content">
-                          <span className="ef-name">{f.name}</span>
-                          <span className="ef-desc">{f.desc}</span>
-                        </div>
-                        <ExternalLink size={14} />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {lastMintTx && activeTab === 'usdc' && (
-            <div className="mint-success-msg">
-              <CheckCircle size={16} color="var(--success-400)" />
-              <span>Berhasil!</span>
-              <a 
-                href={networkId === '11155111' ? `https://sepolia.etherscan.io/tx/${lastMintTx}` : '#'} 
-                target="_blank" rel="noreferrer" className="tx-link"
+            </div>
+            <div className="faucet-footer-action">
+              <button
+                className="faucet-btn gold-btn"
+                onClick={isConnected ? handleRequestEth : openSafeConnectModal}
+                disabled={loadingEth}
               >
-                Lihat Detail <ExternalLink size={12} />
-              </a>
+                {loadingEth
+                  ? <span className="spinner"></span>
+                  : isConnected
+                    ? 'Claim 0.05 ETH Sepolia'
+                    : <><Wallet size={15} style={{ marginRight: 6 }} />Hubungkan Wallet</>}
+              </button>
+              {lastEthTx && (
+                <a href={`https://sepolia.etherscan.io/tx/${lastEthTx}`} target="_blank" rel="noreferrer" className="tx-status-mini">
+                  <CheckCircle size={12} /> Proses Pengiriman
+                </a>
+              )}
             </div>
-          )}
-        </div>
-
-        <div className="faucet-faq">
-          <div className="faq-item">
-            <h4>Bagaimana cara mendapatkan ETH?</h4>
-            <p>Berbeda dengan USDC, platform kami tidak dapat mencetak ETH. Anda harus mengklaimnya melalui faucet eksternal yang disediakan oleh Google, Alchemy, atau Infura dengan memasukkan alamat wallet Anda di situs tersebut.</p>
           </div>
-          {networkId === '31337' && (
-            <div className="faq-item success-box">
-              <h4>Mode Localhost Terdeteksi</h4>
-              <p>Di jaringan lokal (Hardhat), akun Anda biasanya sudah dibekali 10,000 ETH saat node baru dinyalakan.</p>
-            </div>
-          )}
         </div>
       </div>
     </div>

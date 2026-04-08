@@ -5,12 +5,13 @@ import { parseUsdc, formatUsdc } from '../contracts/MockUSDC';
 import { CONTRACT_ADDRESS, DONATION_SYSTEM_ABI } from '../contracts/DonationSystem';
 import { decodeEventLog, parseAbiItem } from 'viem';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
+import { useSafeConnect } from '../hooks/useSafeConnect';
 import { saveTxHash, getTxHash } from '../api';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, Clock, Users, Target, TrendingUp, CheckCircle,
   ExternalLink, Heart, AlertTriangle, Copy, RefreshCw, Wallet,
-  Shield, User, X, AlertCircle
+  Shield, User, X, AlertCircle, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import './CampaignDetailPage.css';
 
@@ -25,6 +26,7 @@ export default function CampaignDetailPage() {
   const [donationLoading, setDonationLoading] = useState(false);
   const [creationTxHash, setCreationTxHash] = useState(null);
   const { openConnectModal } = useConnectModal();
+  const { openSafeConnectModal } = useSafeConnect();
 
   // Form state
   const [amount, setAmount] = useState('');
@@ -40,9 +42,28 @@ export default function CampaignDetailPage() {
   const [donationPage, setDonationPage] = useState(1);
   const DONATIONS_PER_PAGE = 5;
 
+  // USDC Balance
+  const [usdcBalance, setUsdcBalance] = useState(null);
+
   useEffect(() => {
     fetchData();
   }, [readOnlyContract, id]);
+
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (usdcContract && account) {
+        try {
+          const bal = await usdcContract.balanceOf(account);
+          setUsdcBalance(formatUsdc(bal));
+        } catch (err) {
+          console.error("Gagal get balance:", err);
+        }
+      } else {
+        setUsdcBalance(null);
+      }
+    };
+    fetchBalance();
+  }, [usdcContract, account]);
 
   const fetchData = async () => {
     if (!readOnlyContract || !id) {
@@ -101,21 +122,26 @@ export default function CampaignDetailPage() {
 
   const handleDonate = async (e) => {
     e.preventDefault();
-    if (!isConnected) { toast.error('Hubungkan wallet MetaMask terlebih dahulu!'); return; }
+    if (!isConnected) { toast.error('Hubungkan wallet terlebih dahulu!'); return; }
     if (!user?.isRegistered) { toast.error('Daftar akun terlebih dahulu!'); return; }
     if (!amount || parseFloat(amount) <= 0) { toast.error('Masukkan jumlah donasi yang valid'); return; }
 
     setDonationLoading(true);
-    const toastId = toast.loading('Menyetujui penggunaan USDC...');
+    const toastId = toast.loading('Memeriksa izin USDC...');
 
     try {
       const amountUsdc = parseUsdc(amount);
       const name = isAnon ? 'Anonim' : (user?.name || 'Anonim');
 
-      // Step 1: Approve USDC ke DonationSystem contract
-      const approveTx = await usdcContract.approve(CONTRACT_ADDRESS, amountUsdc);
-      toast.loading('Menunggu konfirmasi approve...', { id: toastId });
-      await approveTx.wait();
+      // Step 1: Check & Approve USDC ke DonationSystem contract
+      const currentAllowance = await usdcContract.allowance(account, CONTRACT_ADDRESS);
+
+      if (currentAllowance < amountUsdc) {
+        toast.loading('Menyetujui penggunaan USDC...', { id: toastId });
+        const approveTx = await usdcContract.approve(CONTRACT_ADDRESS, amountUsdc);
+        toast.loading('Menunggu konfirmasi approve...', { id: toastId });
+        await approveTx.wait();
+      }
 
       // Step 2: Donate
       toast.loading('Memproses donasi di blockchain...', { id: toastId });
@@ -596,7 +622,7 @@ export default function CampaignDetailPage() {
                 <p className="meta-value success">{raised.toFixed(2)} USDC</p>
               </div>
               <div className="detail-meta-item">
-                <p className="meta-label">Donatur</p>
+                <p className="meta-label">Kontribusi</p>
                 <p className="meta-value">{Number(campaign.donorCount)}</p>
               </div>
               <div className="detail-meta-item">
@@ -718,7 +744,7 @@ export default function CampaignDetailPage() {
                     <button
                       type="button"
                       className="gate-btn"
-                      onClick={openConnectModal}
+                      onClick={openSafeConnectModal}
                       style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: '8px' }}
                     >
                       Hubungkan Wallet
@@ -746,7 +772,7 @@ export default function CampaignDetailPage() {
                 <form onSubmit={handleDonate} className="donate-form">
                   {/* Amount */}
                   <div className="form-group">
-                    <label className="form-label">Jumlah Donasi (USDC) *</label>
+                    <label className="form-label">Jumlah Donasi (USDC)</label>
                     <div className="amount-input-wrapper">
                       <input
                         type="number"
@@ -760,13 +786,22 @@ export default function CampaignDetailPage() {
                       />
                       <span className="amount-suffix">USDC</span>
                     </div>
-                    {/* Quick amounts */}
-                    <div className="quick-amounts">
-                      {['10', '50', '100', '500'].map(q => (
-                        <button key={q} type="button" className="quick-amount" onClick={() => setAmount(q)}>
-                          {q} USDC
-                        </button>
-                      ))}
+
+                    {/* Balance and quick amounts */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginTop: '2px' }}>
+                      {usdcBalance !== null && (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          Balance: <strong style={{ color: 'var(--primary-400)' }}>{usdcBalance.toFixed(2)} USDC</strong>
+                        </span>
+                      )}
+
+                      <div className="quick-amounts" style={{ marginTop: 0 }}>
+                        {['10', '50', '100', '500'].map(q => (
+                          <button key={q} type="button" className="quick-amount" onClick={() => setAmount(q)}>
+                            {q} USDC
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
@@ -810,8 +845,7 @@ export default function CampaignDetailPage() {
 
                   {/* Info */}
                   <div className="donate-info-box">
-                    <Shield size={13} />
-                    <span>Donasi menggunakan <strong>Mock USDC</strong>. Proses: approve → transfer via smart contract.</span>
+                    <span>Donasi menggunakan <strong>Mock USDC</strong>. Proses: approve USDC → transfer via smart contract.</span>
                   </div>
 
                   <button type="submit" className="donate-submit" disabled={donationLoading}>
@@ -870,22 +904,24 @@ export default function CampaignDetailPage() {
                   {paginated.map((d, i) => (
                     <div key={i} className="donation-item">
                       <div className="donation-avatar">
-                        {(d.donorName || 'A').charAt(0).toUpperCase()}
+                        <User size={20} />
                       </div>
                       <div className="donation-main">
-                        <div className="donation-header">
-                          <span className="donation-name">{d.donorName || 'Anonim'}</span>
-                          <span className="donation-amount">+{formatUsdc(d.amount).toFixed(2)} USDC</span>
+                        <div className="donation-row">
+                          <div className="donation-info-left">
+                            <span className="donation-name">{d.donorName || 'Anonim'}</span>
+                            <span className="donation-addr monospace">
+                              {d.donor.slice(0, 8)}...{d.donor.slice(-6)}
+                            </span>
+                          </div>
+                          <div className="donation-info-right">
+                            <span className="donation-amount">+{formatUsdc(d.amount).toFixed(2)} USDC</span>
+                            <span className="donation-time">
+                              {new Date(Number(d.timestamp) * 1000).toLocaleString('id-ID')}
+                            </span>
+                          </div>
                         </div>
-                        {d.message && <p className="donation-message">"{d.message}"</p>}
-                        <div className="donation-footer">
-                          <span className="donation-addr monospace">
-                            {d.donor.slice(0, 8)}...{d.donor.slice(-6)}
-                          </span>
-                          <span className="donation-time">
-                            {new Date(Number(d.timestamp) * 1000).toLocaleString('id-ID')}
-                          </span>
-                        </div>
+                        {d.message && <div className="donation-message">"{d.message}"</div>}
                       </div>
                     </div>
                   ))}
@@ -894,33 +930,33 @@ export default function CampaignDetailPage() {
                 {/* Pagination controls */}
                 {totalPages > 1 && (
                   <div className="donations-pagination">
-                    <button
-                      className="dpag-btn"
-                      onClick={() => setDonationPage(p => Math.max(1, p - 1))}
-                      disabled={donationPage === 1}
-                    >
-                      Sebelumnya
-                    </button>
+                    <div className="dpag-pill">
+                      <button
+                        className="dpag-arrow"
+                        onClick={() => setDonationPage(p => Math.max(1, p - 1))}
+                        disabled={donationPage === 1}
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
 
-                    <div className="dpag-pages">
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(pg => (
                         <button
                           key={pg}
-                          className={`dpag-page ${donationPage === pg ? 'active' : ''}`}
+                          className={`dpag-item ${donationPage === pg ? 'active' : ''}`}
                           onClick={() => setDonationPage(pg)}
                         >
                           {pg}
                         </button>
                       ))}
-                    </div>
 
-                    <button
-                      className="dpag-btn"
-                      onClick={() => setDonationPage(p => Math.min(totalPages, p + 1))}
-                      disabled={donationPage === totalPages}
-                    >
-                      Berikutnya
-                    </button>
+                      <button
+                        className="dpag-arrow"
+                        onClick={() => setDonationPage(p => Math.min(totalPages, p + 1))}
+                        disabled={donationPage === totalPages}
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
                   </div>
                 )}
               </>

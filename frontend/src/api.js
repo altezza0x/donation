@@ -89,3 +89,28 @@ export async function getUserProfile(wallet) {
     return null;
   }
 }
+// ── Faucet ─────────────────────────────────────────────────────────────────
+
+/**
+ * Meminta 0.05 Sepolia ETH dari wallet Admin (Gasless Faucet)
+ * @param {string} walletAddress 
+ * @returns {Promise<object>} { success, txHash, message }
+ */
+export async function requestEthFaucet(walletAddress) {
+  try {
+    const res = await fetch(`${API_BASE}/faucet/eth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ walletAddress: String(walletAddress) }),
+    });
+    
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Gagal klaim faucet.');
+    }
+    return data;
+  } catch (err) {
+    console.error('[API] Faucet error:', err.message);
+    throw err;
+  }
+}

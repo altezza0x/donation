@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useAccount, usePublicClient, useWalletClient, useDisconnect } from 'wagmi';
+import { useAccount, usePublicClient, useWalletClient, useDisconnect, useConnect } from 'wagmi';
 import { DONATION_SYSTEM_ABI, CONTRACT_ADDRESS } from '../contracts/DonationSystem';
 import { MOCK_USDC_ABI, USDC_ADDRESS } from '../contracts/MockUSDC';
 import { getUserProfile } from '../api';
@@ -8,10 +8,11 @@ import toast from 'react-hot-toast';
 const Web3Context = createContext(null);
 
 export const Web3Provider = ({ children }) => {
-  const { address, isConnected, isConnecting } = useAccount();
+  const { address, isConnected, isConnecting, connector } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { disconnect } = useDisconnect();
+  const { reset: resetConnect } = useConnect();
 
   const [user, setUser] = useState(null);
   const [contract, setContract] = useState(null);
@@ -137,12 +138,44 @@ export const Web3Provider = ({ children }) => {
     }
   }, [address, loadUser]);
 
-  const disconnectWallet = useCallback(() => {
+  const disconnectWallet = useCallback(async () => {
+    // 1. Revoke MetaMask permissions langsung di provider level
+    //    Ini membersihkan pending eth_requestAccounts internal MetaMask
+    //    yang menjadi penyebab stuck saat reconnect
+    try {
+      const provider = window.ethereum;
+      if (provider) {
+        const metamaskProvider =
+          provider.isMetaMask
+            ? provider
+            : (provider.providers?.find((p) => p.isMetaMask) ?? null);
+        if (metamaskProvider) {
+          await metamaskProvider
+            .request({
+              method: 'wallet_revokePermissions',
+              params: [{ eth_accounts: {} }],
+            })
+            .catch(() => {});
+        }
+      }
+    } catch (_) { /* ignore */ }
+
+    // 2. Disconnect wagmi connector
+    try {
+      if (connector && typeof connector.disconnect === 'function') {
+        await connector.disconnect().catch(() => {});
+      }
+    } catch (_) { /* ignore */ }
+
     disconnect();
+    resetConnect();
     setUser(null);
     setIsUserLoaded(false);
+    setIsContractOwner(false);
+    setIsVerifiedCreator(false);
+    setIsOwnerLoaded(false);
     toast.success('Wallet terputus');
-  }, [disconnect]);
+  }, [disconnect, resetConnect, connector]);
 
   const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : null;
 

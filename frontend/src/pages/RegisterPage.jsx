@@ -4,7 +4,7 @@ import { useWeb3 } from '../context/Web3Context';
 import { saveUserProfile } from '../api';
 import toast from 'react-hot-toast';
 import {
-  UserPlus, Wallet, Heart, Building2, CheckCircle, Shield,
+  UserPlus, Wallet, CheckCircle, Shield,
   Zap, ArrowRight, ArrowLeft, Sparkles, Globe, Lock, User, Mail, AlertCircle, X
 } from 'lucide-react';
 import './RegisterPage.css';
@@ -13,8 +13,7 @@ const ROLES = [
   {
     id: 'donor',
     label: 'Donatur',
-    icon: Heart,
-    emoji: '💖',
+    icon: 'volunteer_activism',
     desc: 'Berdonasi untuk mendukung kampanye kemanusiaan.',
     features: ['Berdonasi ke kampanye', 'Lacak riwayat donasi', 'Pantau penggunaan dana'],
     gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
@@ -24,8 +23,7 @@ const ROLES = [
   {
     id: 'recipient',
     label: 'Penggalang Dana',
-    icon: Building2,
-    emoji: '🏛️',
+    icon: 'assured_workload',
     desc: 'Buat kampanye penggalangan dana untuk kegiatan sosial.',
     features: ['Buat kampanye donasi', 'Kelola dana terkumpul', 'Tarik dana ke wallet'],
     gradient: 'linear-gradient(135deg, #06b6d4, #0ea5e9)',
@@ -76,7 +74,7 @@ export default function RegisterPage() {
         registeredAt: Date.now(),
         signature: signature
       };
-      
+
       localStorage.setItem(`donationUser_${account}`, JSON.stringify(userData));
 
       // Simpan juga ke MongoDB agar bisa diakses dari perangkat lain (HP, dll)
@@ -154,7 +152,7 @@ export default function RegisterPage() {
               <Wallet size={32} />
             </div>
             <h2>Hubungkan Wallet</h2>
-            <p>Hubungkan MetaMask Anda untuk memulai pendaftaran. Identitas Anda akan terikat pada wallet Ethereum.</p>
+            <p>Hubungkan wallet Anda untuk memulai pendaftaran. Identitas Anda akan terikat pada wallet Ethereum.</p>
             <div className="gate-features">
               <div className="gate-feature"><Shield size={16} /> <span>Terdesentralisasi & Aman</span></div>
               <div className="gate-feature"><Globe size={16} /> <span>Transparan di Blockchain</span></div>
@@ -221,8 +219,7 @@ export default function RegisterPage() {
         {/* Header */}
         <div className="register-hero">
           <span className="reg-chip">
-            <Sparkles size={14} />
-            Registrasi Signature (Bebas Biaya)
+            Registrasi Signature
           </span>
           <h1>
             Bergabung & Mulai <span className="gradient-text">Berdonasi</span>
@@ -249,12 +246,11 @@ export default function RegisterPage() {
         <div className="register-main-card">
           {/* Wallet status bar */}
           <div className="reg-wallet-bar">
-            <div className="reg-wallet-pulse" />
-            <div className="reg-wallet-info">
-              <span className="reg-wallet-label">Wallet Terhubung</span>
+            <div className="reg-wallet-chip">
+              <span className="reg-wallet-label">Terhubung</span>
+              <span className="reg-wallet-divider"></span>
               <span className="reg-wallet-addr">{account?.slice(0, 8)}...{account?.slice(-6)}</span>
             </div>
-            <div className="reg-wallet-status">Terhubung</div>
           </div>
 
           {/* Step 0: Role selection */}
@@ -276,19 +272,22 @@ export default function RegisterPage() {
                       '--role-border': border,
                     }}
                   >
-                    <div className="reg-role-check">
-                      {form.role === id && <CheckCircle size={20} />}
-                    </div>
+                    <div className="reg-role-radio" />
                     <div className="reg-role-icon-box" style={{ background: gradient }}>
-                      <Icon size={24} color="white" />
+                      {typeof Icon === 'string' ? (
+                        <span className="material-symbols-outlined" style={{ color: 'white', fontSize: '30px' }}>
+                          {Icon}
+                        </span>
+                      ) : (
+                        <Icon size={30} color="white" />
+                      )}
                     </div>
-                    <span className="reg-role-emoji">{emoji}</span>
                     <h4>{label}</h4>
                     <p>{desc}</p>
                     <ul className="reg-role-features">
                       {features.map(f => (
                         <li key={f}>
-                          <CheckCircle size={12} />
+                          <div className="reg-feature-dot" />
                           <span>{f}</span>
                         </li>
                       ))}
@@ -303,8 +302,7 @@ export default function RegisterPage() {
           {step === 1 && (
             <div className="reg-step-content animate-step">
               <div className="step-header">
-                <h3>Informasi Anda</h3>
-                <p>Lengkapi profil lokal Anda (tidak masuk ke blockchain)</p>
+                <h3>Informasi Profil Anda</h3>
               </div>
               <div className="reg-form-fields">
                 <div className="reg-field">
@@ -317,7 +315,7 @@ export default function RegisterPage() {
                       type="text"
                       value={form.name}
                       onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Contoh: John Doe atau Yayasan ABC"
+                      placeholder="Contoh: Jonowi atau Yayasan MBG"
                       maxLength={100}
                       required
                       autoFocus
@@ -338,7 +336,6 @@ export default function RegisterPage() {
                     />
                   </div>
                   <span className="reg-field-hint">
-                    <Shield size={11} />
                     Email hanya akan disimpan secara lokal, tidak disebarkan ke publik
                   </span>
                 </div>
@@ -356,7 +353,15 @@ export default function RegisterPage() {
               <div className="reg-confirm-card">
                 <div className="reg-confirm-role">
                   <div className="reg-confirm-icon" style={{ background: selectedRole?.gradient }}>
-                    {selectedRole && <selectedRole.icon size={24} color="white" />}
+                    {selectedRole && (
+                      typeof selectedRole.icon === 'string' ? (
+                        <span className="material-symbols-outlined" style={{ color: 'white', fontSize: '28px' }}>
+                          {selectedRole.icon}
+                        </span>
+                      ) : (
+                        <selectedRole.icon size={28} color="white" />
+                      )
+                    )}
                   </div>
                   <div>
                     <span className="confirm-small">Mendaftar sebagai</span>
@@ -429,16 +434,8 @@ export default function RegisterPage() {
         {/* Bottom trust badges */}
         <div className="reg-trust-row">
           <div className="reg-trust-item">
-            <Shield size={16} />
-            <span>Terverifikasi</span>
-          </div>
-          <div className="reg-trust-item">
             <Lock size={16} />
             <span>Enkripsi End-to-End</span>
-          </div>
-          <div className="reg-trust-item">
-            <Zap size={16} />
-            <span>Blockchain Powered</span>
           </div>
         </div>
       </div>

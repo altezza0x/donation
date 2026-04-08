@@ -58,6 +58,14 @@
   color: var(--text-primary);
 }
 
+/* Nama platform hanya tampil di desktop */
+.logo-text-desktop {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
 .logo-accent {
   color: var(--primary-400);
 }
@@ -78,17 +86,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 7px;
+  position: relative;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 6px 10px;
   border-radius: var(--radius-md);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-secondary);
   text-decoration: none;
   transition: all var(--transition-fast);
@@ -97,12 +106,13 @@
 
 .nav-link:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
 }
 
 .nav-link.active {
-  color: var(--primary-400);
-  background: rgba(99, 102, 241, 0.1);
+  color: var(--text-primary);
+  font-weight: 700;
+  background: rgba(99, 102, 241, 0.12);
+  border-radius: var(--radius-md);
 }
 
 /* Actions */
@@ -112,6 +122,75 @@
   justify-content: flex-end;
   gap: 12px;
   flex: 1;
+}
+
+/* Wrapper untuk chain + wallet button di desktop */
+.desktop-wallet-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Tombol Chain (indikator jaringan) */
+.chain-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.chain-btn-ok {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+
+.chain-btn-ok:hover {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.chain-btn-error {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #f87171;
+  animation: pulse-error 2s infinite;
+}
+
+.chain-btn-error:hover {
+  background: rgba(239, 68, 68, 0.18);
+}
+
+@keyframes pulse-error {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3);
+  }
+
+  50% {
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
+  }
+}
+
+.chain-btn-label {
+  font-size: 12px;
+}
+
+.chain-icon-img {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: contain;
+  background-color: #ffffff;
+  padding: 1.5px;
 }
 
 /* Connect Wallet Button */
@@ -165,28 +244,6 @@
 .wallet-connected-btn:hover {
   background: rgba(99, 102, 241, 0.15);
   border-color: rgba(99, 102, 241, 0.4);
-}
-
-.wallet-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--success-400);
-  border-radius: 50%;
-  animation: pulse-dot 2s infinite;
-}
-
-@keyframes pulse-dot {
-
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.7;
-    transform: scale(1.2);
-  }
 }
 
 .wallet-name {
@@ -284,7 +341,6 @@
   color: var(--primary-400);
 }
 
-/* Mobile */
 .mobile-menu-btn {
   display: none;
   background: none;
@@ -299,6 +355,58 @@
 .mobile-menu-btn:hover {
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-primary);
+}
+
+/* Tombol wallet compak di header mobile — tersembunyi di desktop */
+.mobile-wallet-header-btn {
+  display: none;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, var(--primary-600), var(--primary-500));
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  box-shadow: 0 0 14px rgba(99, 102, 241, 0.35);
+  white-space: nowrap;
+}
+
+/* Wrapper chain+wallet mobile — hidden di desktop */
+.mobile-connected-group {
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.mobile-wallet-header-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 22px rgba(99, 102, 241, 0.55);
+}
+
+.mobile-wallet-header-btn.connected-compact {
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.mobile-wallet-header-btn.connected-compact:hover {
+  background: rgba(99, 102, 241, 0.2);
+  transform: none;
+  box-shadow: none;
+}
+
+.mobile-wallet-header-btn.wrong-network-compact {
+  background: linear-gradient(135deg, var(--danger-500), #dc2626);
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.35);
+}
+
+.mobile-wallet-header-label {
+  font-size: 13px;
 }
 
 .mobile-menu {
@@ -398,12 +506,22 @@
     display: none;
   }
 
-  /* Sembunyikan tombol wallet dari header agar tidak berdempetan */
+  /* Sembunyikan nama platform di mobile */
+  .logo-text-desktop {
+    display: none;
+  }
+
+  /* Sembunyikan tombol wallet desktop dari header */
   .navbar-actions .connect-wallet-btn,
   .navbar-actions .wallet-dropdown-wrapper,
   .navbar-actions .wrong-network,
   .nav-profile-btn {
     display: none !important;
+  }
+
+  /* Munculkan tombol wallet compact di header */
+  .mobile-wallet-header-btn {
+    display: flex;
   }
 
   /* Munculkan tombol menu hamburger */
@@ -419,61 +537,52 @@
     display: none;
   }
 
-  .logo-text {
-    font-size: 17px;
+  /* Kurangi gap header agar tidak penuh */
+  .navbar-actions {
+    gap: 6px;
   }
 
-  /* Tombol wallet di dalam mobile menu */
-  .mobile-wallet-section {
-    margin-top: 8px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  /* Sembunyikan desktop wallet group di mobile */
+  .desktop-wallet-group {
+    display: none !important;
+  }
+
+  /* Wrapper tombol chain + wallet di header mobile */
+  .mobile-connected-group {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    align-items: center;
+    gap: 6px;
   }
 
-  .mobile-connect-wallet-btn {
+  /* Chain badge icon kecil di mobile */
+  .mobile-chain-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    padding: 14px 16px;
-    background: linear-gradient(135deg, var(--primary-600), var(--primary-500));
-    color: white;
-    border: none;
+    width: 32px;
+    height: 32px;
     border-radius: var(--radius-md);
-    font-size: 15px;
-    font-weight: 600;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    color: #34d399;
     cursor: pointer;
-    width: 100%;
-    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
-    transition: all 0.2s;
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
   }
 
-  .mobile-wallet-connected {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    background: rgba(99, 102, 241, 0.1);
-    border: 1px solid rgba(99, 102, 241, 0.25);
-    border-radius: var(--radius-md);
-    color: var(--text-primary);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    width: 100%;
-    text-align: left;
+  .mobile-chain-btn:hover {
+    background: rgba(16, 185, 129, 0.18);
   }
 
-  .mobile-wallet-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-left: auto;
+  .mobile-chain-btn-error {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #f87171;
+    animation: pulse-error 2s infinite;
+  }
+
+  .mobile-chain-btn-error:hover {
+    background: rgba(239, 68, 68, 0.18);
   }
 
   .mobile-profile-link {

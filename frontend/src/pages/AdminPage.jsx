@@ -1,25 +1,58 @@
 import { useState, useRef, useEffect } from 'react';
 import { useWeb3 } from '../context/Web3Context';
-import { Shield, AlertCircle, Wallet, ChevronDown, X, ExternalLink, XCircle, BadgeCheck, Coins, RefreshCw, Database } from 'lucide-react';
+import { Shield, AlertCircle, ChevronDown, X, ExternalLink, XCircle, BadgeCheck, RefreshCw, Database, Cpu } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { API_BASE } from '../api';
 import './AdminPage.css';
 
 export default function AdminPage() {
-  const { contract, usdcContract, account, isConnected, isContractOwner, isOwnerLoaded } = useWeb3();
+  const { contract, account, isConnected, isContractOwner, isOwnerLoaded } = useWeb3();
   const [targetAddress, setTargetAddress] = useState('');
   const [isVerified, setIsVerified] = useState(true);
   const [loading, setLoading] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Mint USDC state
-  const [mintAddress, setMintAddress] = useState('');
-  const [mintAmount, setMintAmount] = useState('');
-  const [mintLoading, setMintLoading] = useState(false);
-
   // Sync state
   const [syncLoading, setSyncLoading] = useState(false);
+
+  // Whitelist state
+  const [whitelistedUsers, setWhitelistedUsers] = useState([]);
+  const [loadingWhitelist, setLoadingWhitelist] = useState(false);
+
+  const loadWhitelistedUsers = async () => {
+    if (!contract) return;
+    setLoadingWhitelist(true);
+    try {
+      const res = await fetch(`${API_BASE}/users`);
+      if (res.ok) {
+        const payload = await res.json();
+        if (payload.success && payload.data) {
+          const users = payload.data;
+          const checks = users.map(async (u) => {
+            try {
+              if (!/^0x[a-fA-F0-9]{40}$/.test(u.wallet)) return null;
+              const isWl = await contract.verifiedCreators(u.wallet);
+              return isWl ? { ...u, isWhitelisted: true } : null;
+            } catch (e) { return null; }
+          });
+          const results = await Promise.all(checks);
+          const whitelisted = results.filter(r => r !== null);
+          setWhitelistedUsers(whitelisted);
+        }
+      }
+    } catch (error) {
+      console.error("Gagal mendapatkan daftar whitelist", error);
+    } finally {
+      setLoadingWhitelist(false);
+    }
+  };
+
+  useEffect(() => {
+    if (contract && isContractOwner) {
+      loadWhitelistedUsers();
+    }
+  }, [contract, isContractOwner]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -36,10 +69,10 @@ export default function AdminPage() {
   if (!isConnected) {
     return (
       <div className="admin-page">
-        <div className="container" style={{ textAlign: 'center', marginTop: 100 }}>
+        <div className="container" style={{ textAlign: 'center', marginTop: 60 }}>
           <Shield size={48} style={{ color: 'var(--primary-400)', opacity: 0.5, marginBottom: 20 }} />
           <h2>Hubungkan Wallet</h2>
-          <p>Harap hubungkan MetaMask Anda untuk mengakses Halaman Admin.</p>
+          <p>Harap hubungkan wallet Anda untuk mengakses halaman admin.</p>
         </div>
       </div>
     );
@@ -49,7 +82,7 @@ export default function AdminPage() {
   if (!isOwnerLoaded) {
     return (
       <div className="admin-page">
-        <div className="container" style={{ textAlign: 'center', marginTop: 100 }}>
+        <div className="container" style={{ textAlign: 'center', marginTop: 60 }}>
           <div className="spinner" style={{ width: 40, height: 40, borderWidth: 3, margin: '0 auto 20px' }} />
           <p style={{ color: 'var(--text-muted)' }}>Memverifikasi akses administrator...</p>
         </div>
@@ -61,7 +94,7 @@ export default function AdminPage() {
   if (!isContractOwner) {
     return (
       <div className="admin-page">
-        <div className="container" style={{ textAlign: 'center', marginTop: 100 }}>
+        <div className="container" style={{ textAlign: 'center', marginTop: 60 }}>
           <AlertCircle size={48} style={{ color: 'var(--danger-400)', opacity: 0.8, marginBottom: 20 }} />
           <h2>Akses Ditolak</h2>
           <p style={{ color: 'var(--text-muted)' }}>
@@ -113,8 +146,7 @@ export default function AdminPage() {
 
     try {
       const statusBool = isVerified === 'true' || isVerified === true;
-      
-      // Check current blockchain state before proceeding
+
       if (contract.verifiedCreators) {
         const currentStatus = await contract.verifiedCreators(targetAddress);
         if (currentStatus === statusBool) {
@@ -132,16 +164,11 @@ export default function AdminPage() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Aksi Tidak Diperlukan</h4>
-                  <p style={{ margin: 0, fontSize: '13px', color: '#f59e0b', marginTop: '2px' }}>Status sudah sama</p>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#f59e0b', marginTop: '2px' }}>Status sudah diberikan</p>
                 </div>
                 <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: '50%' }}>
                   <X size={16} />
                 </button>
-              </div>
-              <div style={{ background: 'rgba(0, 0, 0, 0.2)', borderRadius: '10px', padding: '12px', borderLeft: '3px solid #f59e0b', textAlign: 'center' }}>
-                <span style={{ color: '#cbd5e1', fontSize: '13px', lineHeight: '1.4' }}>
-                  Wallet ini sudah berstatus <b>{statusBool ? 'Whitelist' : 'Revoke'}</b>.
-                </span>
               </div>
             </div>
           ), { duration: 4000 });
@@ -156,190 +183,14 @@ export default function AdminPage() {
       toast.loading('Menunggu konfirmasi blockchain...', { id: toastId });
       await tx.wait();
 
-      toast.custom((t) => (
-        <div style={{
-          opacity: t.visible ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-          transform: t.visible ? 'translateY(0) scale(1)' : 'translateY(-20px) scale(0.95)',
-          background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid rgba(16, 185, 129, 0.3)',
-          borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px',
-          boxShadow: '0 20px 40px -10px rgba(16, 185, 129, 0.15)', minWidth: '300px', pointerEvents: 'auto'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ background: 'rgba(16, 185, 129, 0.15)', padding: '8px', borderRadius: '12px', display: 'flex' }}>
-              <Shield size={22} style={{ color: '#34d399' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Verifikasi Sukses</h4>
-              <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', marginTop: '2px' }}>Status kreator diperbarui</p>
-            </div>
-            <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: '50%' }}>
-              <X size={16} />
-            </button>
-          </div>
-          <div style={{ background: 'rgba(0, 0, 0, 0.2)', borderRadius: '10px', padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <strong style={{ color: '#10b981', fontSize: '13px' }}>{statusBool ? 'Whitelist Ditambahkan' : 'Whitelist Dicabut'}</strong>
-          </div>
-          <a
-            href={`https://sepolia.etherscan.io/tx/${tx.hash}`}
-            target="_blank" rel="noopener noreferrer"
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-              background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', textDecoration: 'none',
-              padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 500, transition: 'background 0.2s'
-            }}
-          >
-            Lacak di Blockchain <ExternalLink size={14} />
-          </a>
-        </div>
-      ), { id: toastId, duration: 8000 });
+      toast.success('Status otoritas berhasil diperbarui!', { id: toastId });
       setTargetAddress('');
+      loadWhitelistedUsers();
     } catch (err) {
       console.error(err);
-      toast.custom((t) => (
-        <div style={{
-          opacity: t.visible ? 1 : 0, transition: 'transform 0.3s ease, opacity 0.3s ease',
-          transform: t.visible ? 'scale(1)' : 'scale(0.95)',
-          background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid rgba(239, 68, 68, 0.3)',
-          borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px',
-          boxShadow: '0 20px 40px -10px rgba(239, 68, 68, 0.15)', minWidth: '300px', pointerEvents: 'auto'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ background: 'rgba(239, 68, 68, 0.15)', padding: '8px', borderRadius: '12px', display: 'flex' }}>
-              <AlertCircle size={22} style={{ color: '#f87171' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Verifikasi Gagal</h4>
-              <p style={{ margin: 0, fontSize: '13px', color: '#f87171', marginTop: '2px' }}>Reverted by blockchain</p>
-            </div>
-            <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex', borderRadius: '50%' }}>
-              <X size={16} />
-            </button>
-          </div>
-          <div style={{ background: 'rgba(0, 0, 0, 0.2)', borderRadius: '10px', padding: '12px', borderLeft: '3px solid #ef4444' }}>
-            <span style={{ color: '#cbd5e1', fontSize: '13px', lineHeight: '1.4' }}>{err.reason || 'Gagal melakukan verifikasi'}</span>
-          </div>
-        </div>
-      ), { id: toastId, duration: 8000 });
+      toast.error(err.reason || 'Gagal melakukan verifikasi', { id: toastId });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleMint = async (e) => {
-    e.preventDefault();
-    if (!usdcContract) return;
-
-    if (!mintAddress || !/^0x[a-fA-F0-9]{40}$/.test(mintAddress)) {
-      toast.custom((t) => (
-        <div style={{
-          opacity: t.visible ? 1 : 0, transition: 'transform 0.3s ease, opacity 0.3s ease',
-          transform: t.visible ? 'scale(1)' : 'scale(0.95)',
-          background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid rgba(245, 158, 11, 0.3)',
-          borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px',
-          boxShadow: '0 20px 40px -10px rgba(245, 158, 11, 0.15)', minWidth: '300px', pointerEvents: 'auto'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ background: 'rgba(245, 158, 11, 0.15)', padding: '8px', borderRadius: '12px', display: 'flex' }}>
-              <AlertCircle size={22} style={{ color: '#f59e0b' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Format Salah</h4>
-              <p style={{ margin: 0, fontSize: '13px', color: '#f59e0b', marginTop: '2px' }}>Alamat wallet tidak valid</p>
-            </div>
-            <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', borderRadius: '50%' }}>
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-      ), { duration: 4000 });
-      return;
-    }
-
-    const parsedAmount = parseFloat(mintAmount);
-    if (!mintAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
-      toast.error('Masukkan jumlah USDC yang valid');
-      return;
-    }
-
-    setMintLoading(true);
-    const toastId = toast.loading('Mint USDC ke blockchain...');
-
-    try {
-      // Konversi ke 6 desimal
-      const amountRaw = BigInt(Math.round(parsedAmount * 1_000_000));
-      const tx = await usdcContract.mint(mintAddress, amountRaw);
-      toast.loading('Menunggu konfirmasi blockchain...', { id: toastId });
-      await tx.wait();
-
-      toast.custom((t) => (
-        <div style={{
-          opacity: t.visible ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-          transform: t.visible ? 'translateY(0) scale(1)' : 'translateY(-20px) scale(0.95)',
-          background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid rgba(16, 185, 129, 0.3)',
-          borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px',
-          boxShadow: '0 20px 40px -10px rgba(16, 185, 129, 0.15)', minWidth: '300px', pointerEvents: 'auto'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ background: 'rgba(16, 185, 129, 0.15)', padding: '8px', borderRadius: '12px', display: 'flex' }}>
-              <Coins size={22} style={{ color: '#34d399' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Mint Berhasil!</h4>
-              <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', marginTop: '2px' }}>{parsedAmount.toLocaleString()} USDC dikirim</p>
-            </div>
-            <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', borderRadius: '50%' }}>
-              <X size={16} />
-            </button>
-          </div>
-          <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '10px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <span style={{ color: '#94a3b8', fontSize: '12px' }}>Penerima</span>
-            <span style={{ color: '#e2e8f0', fontSize: '13px', fontFamily: 'monospace' }}>{mintAddress}</span>
-          </div>
-          <a
-            href={`https://sepolia.etherscan.io/tx/${tx.hash}`}
-            target="_blank" rel="noopener noreferrer"
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-              background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', textDecoration: 'none',
-              padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 500
-            }}
-          >
-            Lihat di Etherscan <ExternalLink size={14} />
-          </a>
-        </div>
-      ), { id: toastId, duration: 8000 });
-
-      setMintAddress('');
-      setMintAmount('');
-    } catch (err) {
-      console.error(err);
-      toast.custom((t) => (
-        <div style={{
-          opacity: t.visible ? 1 : 0, transition: 'transform 0.3s ease, opacity 0.3s ease',
-          transform: t.visible ? 'scale(1)' : 'scale(0.95)',
-          background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid rgba(239, 68, 68, 0.3)',
-          borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px',
-          boxShadow: '0 20px 40px -10px rgba(239, 68, 68, 0.15)', minWidth: '300px', pointerEvents: 'auto'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ background: 'rgba(239, 68, 68, 0.15)', padding: '8px', borderRadius: '12px', display: 'flex' }}>
-              <AlertCircle size={22} style={{ color: '#f87171' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>Mint Gagal</h4>
-              <p style={{ margin: 0, fontSize: '13px', color: '#f87171', marginTop: '2px' }}>Transaksi ditolak blockchain</p>
-            </div>
-            <button onClick={() => toast.dismiss(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', borderRadius: '50%' }}>
-              <X size={16} />
-            </button>
-          </div>
-          <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '10px', padding: '12px', borderLeft: '3px solid #ef4444' }}>
-            <span style={{ color: '#cbd5e1', fontSize: '13px' }}>{err.reason || err.message || 'Gagal mint USDC'}</span>
-          </div>
-        </div>
-      ), { id: toastId, duration: 8000 });
-    } finally {
-      setMintLoading(false);
     }
   };
 
@@ -350,7 +201,7 @@ export default function AdminPage() {
     try {
       const contractAddress = import.meta.env.VITE_CONTRACT_ADDRESS;
       const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL;
-      
+
       const res = await fetch(`${API_BASE}/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -402,202 +253,182 @@ export default function AdminPage() {
             </div>
           )}
         </div>
-      ), { id: toastId, duration: 10000 });
-
+      ), { id: toastId, duration: 8000 });
     } catch (err) {
       console.error(err);
-      toast.error('Gagal melakukan sinkronisasi: ' + err.message, { id: toastId, duration: 6000 });
+      toast.error('Gagal melakukan sinkronisasi: ' + err.message, { id: toastId });
     } finally {
       setSyncLoading(false);
     }
   };
 
+  const handleCopy = (address) => {
+    navigator.clipboard.writeText(address);
+    toast.success('Alamat disalin!', {
+      icon: '📋',
+      style: {
+        background: 'rgba(15, 23, 42, 0.9)',
+        color: '#fff',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        borderRadius: '12px'
+      }
+    });
+  };
+
   return (
     <div className="admin-page">
-      <div className="admin-header">
-        <div className="admin-header-bg" />
-        <div className="container">
-          <span className="section-tag">Administrator</span>
-          <h1 className="admin-title">
-            Panel <span className="gradient-text">Admin</span>
-          </h1>
-          <p className="admin-desc">
-            Kelola whitelist kreator kampanye dan distribusi Mock USDC untuk keperluan testing donasi di Sepolia Testnet.
-          </p>
+      <div className="admin-main-container container">
+
+        <div className="admin-hero">
+          <h1 className="admin-title">Panel <span className="gradient-text">Otoritas</span></h1>
+          <p className="admin-desc">Pusat kendali operasional dan sinkronisasi transparansi platform ChainDonate.</p>
         </div>
-      </div>
 
-      <div className="admin-cards-grid container">
+        {/* TWO-COLUMN DASHBOARD LAYOUT */}
+        <div className="admin-two-column-layout">
 
-        {/* ── Card 1: Whitelist Kreator ── */}
-        <div className="admin-card glass-card">
-          <div className="admin-card-header">
-            <div className="admin-card-icon" style={{ background: 'rgba(99, 102, 241, 0.12)' }}>
-              <Shield size={22} style={{ color: 'var(--primary-400)' }} />
-            </div>
-            <div>
-              <h3 className="admin-card-title">Whitelist Kreator</h3>
-              <p className="admin-card-desc">Kelola hak akses pembuatan kampanye donasi.</p>
-            </div>
-          </div>
+          {/* LEFT COLUMN: ACTIONS & SYNC */}
+          <div className="admin-left-col">
+            {/* AUTHORITY CONTROL */}
+            <div className="admin-pane primary-pane glass-card">
+              <div className="pane-header">
+                <h3 className="pane-title">Manajemen Otoritas</h3>
+                <p className="pane-desc">Kelola izin pembuatan kampanye di blockchain.</p>
+              </div>
 
-          <form onSubmit={handleVerify} className="admin-form">
-            <div className="form-group">
-              <label className="form-label">Alamat Wallet</label>
-              <input
-                type="text"
-                value={targetAddress}
-                onChange={(e) => setTargetAddress(e.target.value)}
-                placeholder="0x..."
-                className="form-input monospace"
-                required
-              />
-            </div>
+              <form onSubmit={handleVerify} className="admin-compact-form">
+                <div className="form-group">
+                  <label className="form-label">Wallet Address</label>
+                  <input
+                    type="text"
+                    value={targetAddress}
+                    onChange={(e) => setTargetAddress(e.target.value)}
+                    placeholder="0x..."
+                    className="form-input monospace"
+                    required
+                  />
+                </div>
 
-            <div className="form-group" style={{ position: 'relative' }} ref={dropdownRef}>
-              <label className="form-label">Status Otorisasi</label>
-              <div
-                className={`custom-dropdown-trigger form-input ${isDropdownOpen ? 'active' : ''}`}
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {isVerified ? (
-                    <><BadgeCheck size={18} color="var(--success-400)" /> <span>Berikan Izin (Whitelist)</span></>
-                  ) : (
-                    <><XCircle size={18} color="var(--danger-400)" /> <span>Cabut Izin (Revoke)</span></>
+                <div className="form-group" style={{ position: 'relative' }} ref={dropdownRef}>
+                  <label className="form-label">Tindakan Otoritas</label>
+                  <div
+                    className={`custom-dropdown-trigger form-input ${isDropdownOpen ? 'active' : ''}`}
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {isVerified ? (
+                        <><BadgeCheck size={16} color="var(--success-400)" /> <span>Whitelist (Izinkan)</span></>
+                      ) : (
+                        <><XCircle size={16} color="var(--danger-400)" /> <span>Revoke (Cabut)</span></>
+                      )}
+                    </div>
+                    <ChevronDown size={16} style={{ color: 'var(--text-muted)', transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0)', transition: '0.2s' }} />
+                  </div>
+
+                  {isDropdownOpen && (
+                    <div className="custom-dropdown-menu">
+                      <div className={`custom-dropdown-item ${isVerified === true ? 'selected' : ''}`} onClick={() => { setIsVerified(true); setIsDropdownOpen(false); }}>
+                        <BadgeCheck size={14} /> Whitelist (Izinkan)
+                      </div>
+                      <div className={`custom-dropdown-item ${isVerified === false ? 'selected' : ''}`} onClick={() => { setIsVerified(false); setIsDropdownOpen(false); }}>
+                        <XCircle size={14} /> Revoke (Cabut)
+                      </div>
+                    </div>
                   )}
                 </div>
-                <ChevronDown size={18} style={{ color: 'var(--text-muted)', transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0)', transition: '0.2s' }} />
+
+                <button type="submit" className="admin-action-btn" disabled={loading}>
+                  {loading ? <div className="spinner" style={{ width: 14, height: 14 }} /> : <Shield size={16} />}
+                  <span>Konfirmasi Otoritas</span>
+                </button>
+              </form>
+            </div>
+
+            {/* SYSTEM SYNC (Now on Left) */}
+            <div className="admin-pane side-pane glass-card">
+              <div className="pane-header">
+                <h3 className="pane-title">Status Data</h3>
+                <p className="pane-desc">Audit & Sinkronisasi.</p>
               </div>
 
-              {isDropdownOpen && (
-                <div className="custom-dropdown-menu">
-                  <div
-                    className={`custom-dropdown-item ${isVerified === true ? 'selected' : ''}`}
-                    onClick={() => { setIsVerified(true); setIsDropdownOpen(false); }}
-                  >
-                    <BadgeCheck size={16} /> Berikan Izin (Whitelist)
-                  </div>
-                  <div
-                    className={`custom-dropdown-item ${isVerified === false ? 'selected' : ''}`}
-                    onClick={() => { setIsVerified(false); setIsDropdownOpen(false); }}
-                  >
-                    <XCircle size={16} /> Cabut Izin (Revoke)
-                  </div>
+              <div className="sync-status-box">
+                <div className="sync-detail">
+                  <span>Backend: <strong>Operational</strong></span>
                 </div>
-              )}
-            </div>
+                <p className="sync-memo">Gunakan sinkronisasi jika data blockchain tidak sesuai dengan antarmuka.</p>
+              </div>
 
-            <button type="submit" className="admin-submit-btn" disabled={loading}>
-              {loading ? (
-                <><div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> Memproses...</>
-              ) : (
-                <><Shield size={16} /> Konfirmasi ke Blockchain</>
-              )}
-            </button>
-          </form>
-        </div>
-
-        {/* ── Card 2: Mint Mock USDC ── */}
-        <div className="admin-card glass-card">
-          <div className="admin-card-header">
-            <div className="admin-card-icon" style={{ background: 'rgba(16, 185, 129, 0.12)' }}>
-              <Coins size={22} style={{ color: 'var(--success-400)' }} />
-            </div>
-            <div>
-              <h3 className="admin-card-title">Distribusi Mock USDC</h3>
-              <p className="admin-card-desc">Mint token USDC ke alamat wallet manapun untuk testing donasi.</p>
+              <button onClick={handleSync} className="sync-btn" disabled={syncLoading}>
+                {syncLoading ? <div className="spinner" style={{ width: 14, height: 14 }} /> : <Database size={16} />}
+                <span>Synchronize</span>
+              </button>
             </div>
           </div>
 
-          <form onSubmit={handleMint} className="admin-form">
-            <div className="form-group">
-              <label className="form-label">Alamat Penerima</label>
-              <input
-                type="text"
-                value={mintAddress}
-                onChange={(e) => setMintAddress(e.target.value)}
-                placeholder="0x..."
-                className="form-input monospace"
-                required
-              />
-            </div>
+          {/* RIGHT COLUMN: WHITELIST LIST ONLY */}
+          <div className="admin-right-col">
+            <div className="admin-pane whitelist-pane glass-card">
 
-            <div className="form-group">
-              <label className="form-label">Jumlah USDC</label>
-              <div className="mint-amount-wrapper">
-                <input
-                  type="number"
-                  min="1"
-                  step="any"
-                  value={mintAmount}
-                  onChange={(e) => setMintAmount(e.target.value)}
-                  placeholder="1000"
-                  className="form-input"
-                  required
-                />
-                <span className="mint-amount-suffix">USDC</span>
-              </div>
-              {/* Quick amounts */}
-              <div className="mint-quick-amounts">
-                {['100', '500', '1000', '5000'].map(q => (
-                  <button key={q} type="button" className="mint-quick-btn" onClick={() => setMintAmount(q)}>
-                    {q}
+              {/* Panel Header */}
+              <div className="whitelist-pane-header">
+                <div className="whitelist-pane-title-row">
+                  <h3 className="whitelist-pane-title">
+                    Daftar Akun Whitelist
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={loadWhitelistedUsers}
+                    className={`whitelist-refresh-btn${loadingWhitelist ? ' loading' : ''}`}
+                    disabled={loadingWhitelist}
+                  >
+                    <RefreshCw size={13} className={loadingWhitelist ? 'spin' : ''} />
+                    <span>Refresh</span>
                   </button>
-                ))}
+                </div>
+                <p className="whitelist-pane-desc">Otoritas yang terdaftar di blockchain.</p>
               </div>
-            </div>
 
-            <div className="mint-info-box">
-              <Wallet size={13} />
-              <span>Token ini adalah <strong>Mock USDC</strong> untuk Sepolia Testnet — tidak memiliki nilai nyata.</span>
-            </div>
+              {/* Panel Body */}
+              <div className="whitelist-pane-body">
+                {loadingWhitelist ? (
+                  <div className="whitelist-state-empty">
+                    <div className="spinner whitelist-spinner" />
+                    <p>Memuat data...</p>
+                  </div>
+                ) : whitelistedUsers.length === 0 ? (
+                  <div className="whitelist-state-empty">
+                    <div className="whitelist-empty-icon"><BadgeCheck size={28} /></div>
+                    <p>Belum ada akun terdaftar.</p>
+                  </div>
+                ) : (
+                  <div className="whitelist-list custom-scrollbar">
+                    {whitelistedUsers.map((u, i) => (
+                      <div key={u.wallet} className="wl-card">
+                        <div className="wl-card-index">{i + 1}</div>
+                        <div className="wl-card-info">
+                          <div className="wl-card-name-row">
+                            <div className="wl-card-name">{u.name}</div>
+                            <BadgeCheck size={14} className="verified-badge-inline" />
+                          </div>
+                          <div
+                            className="wl-card-wallet monospace"
+                            onClick={() => handleCopy(u.wallet)}
+                            title="Salin alamat"
+                          >
+                            <span>{u.wallet.substring(0, 21)}...{u.wallet.substring(34)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            <button type="submit" className="admin-submit-btn mint-btn" disabled={mintLoading}>
-              {mintLoading ? (
-                <><div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> Minting...</>
-              ) : (
-                <><Coins size={16} /> Mint USDC Sekarang</>
-              )}
-            </button>
-          </form>
-        </div>
-
-        {/* ── Card 3: Sinkronisasi Blockchain ── */}
-        <div className="admin-card glass-card">
-          <div className="admin-card-header">
-            <div className="admin-card-icon" style={{ background: 'rgba(56, 189, 248, 0.12)' }}>
-              <RefreshCw size={22} style={{ color: 'var(--accent-400)' }} className={syncLoading ? 'spin-animation' : ''} />
-            </div>
-            <div>
-              <h3 className="admin-card-title">Sinkronisasi Database</h3>
-              <p className="admin-card-desc">Scan permanen riwayat Blockchain Sepolia dan rekam semua Hash Transaksi baru ke Database MongoDB.</p>
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '20px' }}>
-            <div className="mint-info-box" style={{ background: 'rgba(56, 189, 248, 0.05)', borderColor: 'rgba(56, 189, 248, 0.1)' }}>
-              <Database size={13} style={{ color: 'var(--accent-400)' }} />
-              <span>Gunakan fitur ini jika ada transaksi di blockchain yang gagal tersimpan ke database karena masalah koneksi/server. Fitur ini aman (read-only) & gratis.</span>
-            </div>
-
-            <button 
-              onClick={handleSync} 
-              className="admin-submit-btn" 
-              style={{ background: 'var(--bg-card)', border: '1px solid rgba(56, 189, 248, 0.2)', width: '100%', padding: '14px', borderRadius: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', color: 'var(--text-primary)', cursor: 'pointer', transition: '0.2s', opacity: syncLoading ? 0.7 : 1 }}
-              onMouseOver={(e) => {if(!syncLoading) e.currentTarget.style.background = 'rgba(56, 189, 248, 0.1)';}}
-              onMouseOut={(e) => {if(!syncLoading) e.currentTarget.style.background = 'var(--bg-card)';}}
-              disabled={syncLoading}
-            >
-              {syncLoading ? (
-                <><div className="spinner" style={{ width: 16, height: 16, borderWidth: 2, borderTopColor: 'var(--accent-400)' }} /> Mengekstrak data blockchain...</>
-              ) : (
-                <><RefreshCw size={16} style={{ color: 'var(--accent-400)' }} /> Jalankan Sinkronisasi Penuh</>
-              )}
-            </button>
-          </div>
         </div>
-
       </div>
     </div>
   );

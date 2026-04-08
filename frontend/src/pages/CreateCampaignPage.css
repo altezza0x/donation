@@ -458,10 +458,11 @@
 .nw-highlight {
   color: var(--primary-400);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .nw-desc {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-muted);
   line-height: 1.7;
   margin: 0;

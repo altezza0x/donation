@@ -837,11 +837,9 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--feat-accent, #818cf8) 6%, transparent) 0%,
-    transparent 55%
-  );
+  background: linear-gradient(135deg,
+      color-mix(in srgb, var(--feat-accent, #818cf8) 6%, transparent) 0%,
+      transparent 55%);
   opacity: 0;
   transition: opacity 0.3s ease;
   pointer-events: none;
@@ -849,8 +847,8 @@
 
 .feature-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 12px 32px rgba(0,0,0,0.25),
-              0 0 0 1px color-mix(in srgb, var(--feat-accent, #818cf8) 25%, transparent);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25),
+    0 0 0 1px color-mix(in srgb, var(--feat-accent, #818cf8) 25%, transparent);
   border-color: var(--feat-accent, var(--primary-500));
 }
 
@@ -904,18 +902,17 @@
 /* horizontal connector line (desktop) */
 .how-steps-line {
   position: absolute;
-  top: 46px; /* center of badge */
+  top: 46px;
+  /* center of badge */
   left: calc(12.5% + 1px);
   right: calc(12.5% + 1px);
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    rgba(99,102,241,0.15),
-    rgba(99,102,241,0.4) 25%,
-    rgba(34,211,238,0.4) 50%,
-    rgba(52,211,153,0.4) 75%,
-    rgba(251,191,36,0.15)
-  );
+  background: linear-gradient(90deg,
+      rgba(99, 102, 241, 0.15),
+      rgba(99, 102, 241, 0.4) 25%,
+      rgba(34, 211, 238, 0.4) 50%,
+      rgba(52, 211, 153, 0.4) 75%,
+      rgba(251, 191, 36, 0.15));
   z-index: 0;
 }
 
@@ -946,13 +943,13 @@
   margin-bottom: 16px;
   transition: transform 0.35s ease, box-shadow 0.35s ease;
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--how-accent, #818cf8) 6%, transparent),
-              0 0 20px color-mix(in srgb, var(--how-accent, #818cf8) 20%, transparent);
+    0 0 20px color-mix(in srgb, var(--how-accent, #818cf8) 20%, transparent);
 }
 
 .how-step-card:hover .how-step-badge {
   transform: translateY(-4px) scale(1.06);
   box-shadow: 0 8px 32px color-mix(in srgb, var(--how-accent, #818cf8) 35%, transparent),
-              0 0 0 8px color-mix(in srgb, var(--how-accent, #818cf8) 8%, transparent);
+    0 0 0 8px color-mix(in srgb, var(--how-accent, #818cf8) 8%, transparent);
 }
 
 /* subtle spinning ring on hover */
@@ -1000,7 +997,8 @@
 
 /* desktop: how-step-text acts as transparent passthrough */
 .how-step-text {
-  display: contents; /* on desktop, children behave as direct children of how-step-card */
+  display: contents;
+  /* on desktop, children behave as direct children of how-step-card */
 }
 
 /* ===== MOBILE ===== */
@@ -1092,7 +1090,7 @@
 }
 
 /* inner div containing tag + title */
-.section-header-row > div {
+.section-header-row>div {
   display: flex;
   flex-direction: column;
   align-items: flex-start;

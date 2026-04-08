@@ -49,20 +49,14 @@
   position: relative;
   aspect-ratio: 16 / 9;
   width: 100%;
-  background: linear-gradient(135deg, #1e293b, #0f172a);
+  background-color: #0f172a;
+  background-image: radial-gradient(circle at 30% 40%, rgba(99, 102, 241, 0.25), transparent 70%), linear-gradient(135deg, #1e293b, #0f172a);
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   margin-bottom: 12px;
-}
-
-.detail-thumbnail::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 30% 40%, rgba(99, 102, 241, 0.25), transparent 70%);
 }
 
 .detail-emoji {
@@ -362,66 +356,67 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  margin-top: 24px;
-  flex-wrap: wrap;
+  margin-top: 32px;
 }
 
-.dpag-btn {
-  padding: 8px 18px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 99px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.18s;
-  white-space: nowrap;
+.dpag-pill {
+  display: inline-flex;
+  align-items: stretch;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 100px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.dpag-btn:hover:not(:disabled) {
-  border-color: var(--border-normal);
-  color: var(--text-primary);
-}
-
-.dpag-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.dpag-pages {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.dpag-page {
-  width: 34px;
-  height: 34px;
+.dpag-arrow,
+.dpag-item {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 99px;
-  border: 1px solid var(--border-subtle);
   background: none;
+  border: none;
   color: var(--text-muted);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.18s;
+  transition: all 0.2s;
+  min-width: 38px;
+  height: 32px;
+  position: relative;
 }
 
-.dpag-page:hover:not(.active) {
-  border-color: var(--border-normal);
+.dpag-arrow+.dpag-item,
+.dpag-item+.dpag-item,
+.dpag-item+.dpag-arrow {
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dpag-arrow:hover:not(:disabled),
+.dpag-item:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-primary);
 }
 
-.dpag-page.active {
-  background: rgba(99, 102, 241, 0.15);
-  border-color: rgba(99, 102, 241, 0.4);
-  color: var(--primary-300);
+.dpag-arrow:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+
+.dpag-item.active {
+  background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
+  color: white;
+  border-left-color: transparent;
+  font-weight: 600;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+  z-index: 1;
+  /* Keep above sibling borders */
+}
+
+/* Hide the left border of the element coming right after the active one */
+.dpag-item.active+.dpag-item,
+.dpag-item.active+.dpag-arrow {
+  border-left-color: transparent;
 }
 
 
@@ -461,62 +456,77 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary-600), var(--accent-600));
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 16px;
-  color: white;
+  color: var(--primary-400);
   flex-shrink: 0;
 }
 
 .donation-main {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
 }
 
-.donation-header {
+.donation-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 4px;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.donation-info-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.donation-info-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  text-align: right;
 }
 
 .donation-name {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
 }
 
+.donation-addr {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .donation-amount {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--success-400);
   white-space: nowrap;
+}
+
+.donation-time {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .donation-message {
   font-size: 13px;
   color: var(--text-secondary);
   font-style: italic;
-  margin-bottom: 6px;
-}
-
-.donation-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.donation-addr {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.donation-time {
-  font-size: 11px;
-  color: var(--text-muted);
+  margin: 2px 0 0;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 3px solid rgba(99, 102, 241, 0.3);
+  border-radius: 4px;
 }
 
 /* ===== SIDEBAR / DONATE FORM ===== */
@@ -606,6 +616,19 @@
 
 .amount-input-wrapper .form-input {
   padding-right: 48px;
+}
+
+/* Sembunyikan spin button default browser */
+.amount-input-wrapper input[type="number"]::-webkit-outer-spin-button,
+.amount-input-wrapper input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+.amount-input-wrapper input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .amount-suffix {

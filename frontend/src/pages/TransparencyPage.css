@@ -465,7 +465,7 @@
 }
 
 .status-badge {
-  padding: 3px 10px;
+  padding: 5px 12px;
   border-radius: var(--radius-full);
   font-size: 11px;
   font-weight: 700;
@@ -959,7 +959,8 @@
 
   .modal-addr-row {
     justify-content: flex-start;
-    padding-right: 24px; /* Batas khusus agar teks Address/Hash tidak menabrak tombol copy absolute */
+    padding-right: 24px;
+    /* Batas khusus agar teks Address/Hash tidak menabrak tombol copy absolute */
   }
 
   .trans-detail-row .copy-tiny {
@@ -978,7 +979,8 @@
     width: 100%;
   }
 
-  .modal-addr-text, .modal-hash-text {
+  .modal-addr-text,
+  .modal-hash-text {
     font-size: 11px;
     text-align: left;
     word-break: break-all;

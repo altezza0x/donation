@@ -120,7 +120,7 @@ export default function ProfilePage() {
           ...d,
           txHash: localStorage.getItem(`don-tx-${d.id.toString()}`) || realTxHashMap[`don-${d.id.toString()}`] || d.txHash
         }));
-        
+
         const vCamps = camps.map(c => ({
           ...c,
           txHash: localStorage.getItem(`camp-tx-${c.id.toString()}`) || realTxHashMap[`camp-${c.id.toString()}`] || null
@@ -160,7 +160,7 @@ export default function ProfilePage() {
           <div className="profile-gate">
             <Wallet size={48} style={{ color: 'var(--primary-400)', opacity: 0.6 }} />
             <h2>Hubungkan Wallet</h2>
-            <p>Hubungkan MetaMask untuk melihat profil Anda.</p>
+            <p>Hubungkan wallet untuk melihat profil Anda.</p>
           </div>
         </div>
       </div>
@@ -239,12 +239,12 @@ export default function ProfilePage() {
                     if (!user?.registeredAt) return '-';
                     const val = user.registeredAt;
                     // Jika string (ISO), langsung parse. Jika angka, cek ms vs s.
-                    const dateObj = isNaN(val) 
-                      ? new Date(val) 
+                    const dateObj = isNaN(val)
+                      ? new Date(val)
                       : new Date(Number(val) > 10000000000 ? Number(val) : Number(val) * 1000);
-                    
-                    return isNaN(dateObj.getTime()) 
-                      ? '-' 
+
+                    return isNaN(dateObj.getTime())
+                      ? '-'
                       : dateObj.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
                   })()}
                 </p>
