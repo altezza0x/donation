@@ -21,6 +21,7 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const FaucetPage = lazy(() => import('./pages/FaucetPage'));
+const GuidePage = lazy(() => import('./pages/GuidePage'));
 import './App.css';
 
 // ======================================================
@@ -40,7 +41,7 @@ function GlobalRedirectHandler() {
     // 4. Bukan sedang di halaman register (hindari loop)
     // 5. Bukan di halaman publik (beranda, daftar kampanye, transparansi, detail kampanye)
     if (isConnected && isUserLoaded && !user) {
-      const publicRoutes = ['/', '/campaigns', '/transparency', '/admin'];
+      const publicRoutes = ['/', '/campaigns', '/transparency', '/admin', '/guide', '/faucet'];
       const isPublicRoute = publicRoutes.includes(location.pathname) || location.pathname.startsWith('/campaigns/');
       const isRegisterPage = location.pathname === '/register';
 
@@ -114,6 +115,7 @@ function App() {
                       <Route path="/register" element={<RegisterPage />} />
                       <Route path="/admin" element={<AdminPage />} />
                       <Route path="/faucet" element={<FaucetPage />} />
+                      <Route path="/guide" element={<GuidePage />} />
                     </Routes>
                   </Suspense>
                 </main>

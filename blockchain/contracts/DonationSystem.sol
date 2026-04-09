@@ -79,6 +79,10 @@ contract DonationSystem {
 
     mapping(address => bool) public verifiedCreators;
 
+    // Daftar address yang sedang aktif di whitelist (untuk dibaca frontend)
+    address[] public whitelistedAddresses;
+    mapping(address => uint256) private whitelistedIndex; // address => index+1 (0 = tidak ada)
+
     mapping(uint256 => Campaign) public campaigns;
     mapping(uint256 => Donation[]) public campaignDonations;
     mapping(uint256 => Donation) public donations;
@@ -117,6 +121,12 @@ contract DonationSystem {
 
     event CampaignDeactivated(
         uint256 indexed campaignId,
+        uint256 timestamp
+    );
+
+    event CreatorVerified(
+        address indexed creator,
+        bool indexed status,
         uint256 timestamp
     );
 
@@ -434,10 +444,50 @@ contract DonationSystem {
     // ========== ADMIN FUNCTIONS ==========
 
     /**
-     * @dev Memverifikasi pembuat kampanye
+     * @dev Memverifikasi pembuat kampanye (whitelist / revoke)
+     * @param _creator Address yang akan diubah statusnya
+     * @param _status true = whitelist (izinkan), false = revoke (cabut)
      */
     function verifyCreator(address _creator, bool _status) external onlyOwner {
+        require(_creator != address(0), "Address tidak valid");
+        require(verifiedCreators[_creator] != _status, "Status sudah sama");
+
         verifiedCreators[_creator] = _status;
+
+        if (_status) {
+            // Tambahkan ke array whitelist
+            whitelistedIndex[_creator] = whitelistedAddresses.length + 1; // 1-indexed
+            whitelistedAddresses.push(_creator);
+        } else {
+            // Hapus dari array whitelist dengan swap-delete (gas efisien)
+            uint256 idx = whitelistedIndex[_creator];
+            if (idx > 0) {
+                uint256 lastIdx = whitelistedAddresses.length;
+                if (idx < lastIdx) {
+                    address lastAddr = whitelistedAddresses[lastIdx - 1];
+                    whitelistedAddresses[idx - 1] = lastAddr;
+                    whitelistedIndex[lastAddr] = idx;
+                }
+                whitelistedAddresses.pop();
+                whitelistedIndex[_creator] = 0;
+            }
+        }
+
+        emit CreatorVerified(_creator, _status, block.timestamp);
+    }
+
+    /**
+     * @dev Mendapatkan semua address yang saat ini aktif di whitelist
+     */
+    function getWhitelistedCreators() external view returns (address[] memory) {
+        return whitelistedAddresses;
+    }
+
+    /**
+     * @dev Mendapatkan jumlah address yang aktif di whitelist
+     */
+    function getWhitelistedCount() external view returns (uint256) {
+        return whitelistedAddresses.length;
     }
 
     /**

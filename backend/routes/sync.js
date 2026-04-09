@@ -9,7 +9,8 @@ const { sepolia } = require('viem/chains');
 const eventsAbi = [
   parseAbiItem('event CampaignCreated(uint256 indexed campaignId, address indexed owner, string title, uint256 targetAmount, uint256 deadline)'),
   parseAbiItem('event DonationMade(uint256 indexed donationId, uint256 indexed campaignId, address indexed donor, uint256 amount, uint256 timestamp)'),
-  parseAbiItem('event FundsWithdrawn(uint256 indexed campaignId, address indexed recipient, uint256 amount, uint256 timestamp)')
+  parseAbiItem('event FundsWithdrawn(uint256 indexed campaignId, address indexed recipient, uint256 amount, uint256 timestamp)'),
+  parseAbiItem('event CreatorVerified(address indexed creator, bool indexed status, uint256 timestamp)'),
 ];
 
 router.post('/', async (req, res) => {
@@ -23,13 +24,13 @@ router.post('/', async (req, res) => {
 
     const client = createPublicClient({
       chain: sepolia,
-      transport: http('https://ethereum-sepolia-rpc.publicnode.com'),
+      transport: http(rpcUrl),
     });
 
     console.log(`[SYNC] Memulai sinkronisasi blockchain dari contract ${contractAddress}`);
 
     // --- CHECKPOINTING ---
-    const DEFAULT_START_BLOCK = 5570000n; // Sepolia block waktu contract di-deploy
+    const DEFAULT_START_BLOCK = 10620000n; // Sepolia block sekitar waktu kontrak baru di-deploy (April 2026)
     let syncState = await SyncState.findOne({ contractAddress: contractAddress.toLowerCase() });
 
     let fromBlock = DEFAULT_START_BLOCK;
@@ -59,9 +60,9 @@ router.post('/', async (req, res) => {
       })
     );
 
-    const [campaignLogs, donationLogs, withdrawalLogs] = await Promise.all(allEventsPromises);
+    const [campaignLogs, donationLogs, withdrawalLogs, whitelistLogs] = await Promise.all(allEventsPromises);
 
-    console.log(`[SYNC] Ditemukan: ${campaignLogs.length} kampanye, ${donationLogs.length} donasi, ${withdrawalLogs.length} penarikan.`);
+    console.log(`[SYNC] Ditemukan: ${campaignLogs.length} kampanye, ${donationLogs.length} donasi, ${withdrawalLogs.length} penarikan, ${whitelistLogs.length} whitelist events.`);
 
     // --- BULK DATABASE UPDATES ---
     const bulkOps = [];
@@ -103,6 +104,23 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Whitelist events (CreatorVerified)
+    for (const log of whitelistLogs) {
+      if (!log.args || !log.args.creator) continue;
+      const refId = log.args.creator.toLowerCase();
+      const wlType = log.args.status ? 'whitelist' : 'revoke';
+      bulkOps.push({
+        updateOne: {
+          filter: { type: `whitelist_${wlType}`, refId: refId },
+          update: {
+            txHash: log.transactionHash,
+            blockNumber: Number(log.blockNumber),
+          },
+          upsert: true
+        }
+      });
+    }
+
     if (bulkOps.length > 0) {
       await TxHash.bulkWrite(bulkOps);
     }
@@ -119,10 +137,11 @@ router.post('/', async (req, res) => {
     res.json({
       success: true,
       stats: {
-        totalFound: campaignLogs.length + donationLogs.length + withdrawalLogs.length,
+        totalFound: campaignLogs.length + donationLogs.length + withdrawalLogs.length + whitelistLogs.length,
         campaigns: campaignLogs.length,
         donations: donationLogs.length,
         withdrawals: withdrawalLogs.length,
+        whitelistEvents: whitelistLogs.length,
         syncedToBlock: latestBlock.toString()
       }
     });

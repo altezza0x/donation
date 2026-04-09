@@ -382,7 +382,6 @@ export default function CreateCampaignPage() {
                       className={`cat-option ${form.category === cat ? 'active' : ''}`}
                       onClick={() => setForm(prev => ({ ...prev, category: cat }))}
                     >
-                      <span>{CATEGORY_EMOJIS[cat]}</span>
                       <span>{cat}</span>
                     </button>
                   ))}
@@ -515,11 +514,10 @@ export default function CreateCampaignPage() {
 
             {/* Blockchain notice */}
             <div className="create-blockchain-notice">
-              <Zap size={16} className="notice-icon" />
               <div>
-                <p className="notice-title">Akan Dicatat di Blockchain</p>
+                <p className="notice-title">Akan dicatat di blockchain</p>
                 <p className="notice-desc">
-                  Kampanye ini akan dieksekusi melalui smart contract dan tercatat permanen di Ethereum.
+                  Kampanye ini akan dieksekusi melalui smart contract dan tercatat permanen di blockchain.
                   Pastikan semua informasi sudah benar sebelum submit.
                 </p>
               </div>

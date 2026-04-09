@@ -6,7 +6,7 @@ import { getAllTxHashes } from '../api';
 import {
   BarChart3, TrendingUp, Users, Heart, Globe, Shield,
   ExternalLink, Copy, RefreshCw, Search, Clock, CheckCircle,
-  Wallet, ArrowUpRight, X, Hash, ChevronLeft, ChevronRight, User, LayoutGrid, BadgeCheck
+  Wallet, ArrowUpRight, X, Hash, ChevronLeft, ChevronRight, User, LayoutGrid, BadgeCheck, XCircle
 } from 'lucide-react';
 import { API_BASE } from '../api';
 import './TransparencyPage.css';
@@ -101,6 +101,7 @@ export default function TransparencyPage() {
   const [allCampaigns, setAllCampaigns] = useState([]);
   const [allWithdrawals, setAllWithdrawals] = useState([]);
   const [allWhitelisted, setAllWhitelisted] = useState([]);
+  const [allRevoked, setAllRevoked] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTx, setSearchTx] = useState('');
@@ -189,7 +190,6 @@ export default function TransparencyPage() {
       const mongoHashes = await getAllTxHashes();
 
       // Update global realTxHashMap with verified mongo hashes
-      // Tipe: 'campaign', 'donation', 'withdrawal'
       mongoHashes.forEach(item => {
         if (!item || !item.type || !item.refId || !item.txHash) return;
         if (item.type === 'campaign') {
@@ -223,24 +223,86 @@ export default function TransparencyPage() {
         activeCampaigns: Number(platformStats[3]),
       });
 
+      // ── WHITELIST: Baca langsung dari smart contract (getWhitelistedCreators) ──
+      // Tidak bergantung pada MongoDB — setiap address yang di-whitelist PASTI muncul.
       let whitelisted = [];
-      if (usersData && usersData.data) {
-        const checks = usersData.data.map(async (u) => {
-          try {
-            if (!u.wallet || !/^0x[a-fA-F0-9]{40}$/.test(u.wallet)) return null;
-            const isWl = await readOnlyContract.verifiedCreators(u.wallet);
-            return isWl ? u : null;
-          } catch (e) {
-            return null;
-          }
+      try {
+        const whitelistedAddrs = await readOnlyContract.getWhitelistedCreators();
+        // Buat lookup profile dari MongoDB untuk tampilkan nama (opsional)
+        const profileMap = {};
+        if (usersData && usersData.data) {
+          usersData.data.forEach(u => {
+            if (u.wallet) profileMap[u.wallet.toLowerCase()] = u;
+          });
+        }
+        whitelisted = whitelistedAddrs.map(addr => {
+          const profile = profileMap[addr.toLowerCase()];
+          return {
+            wallet: addr,
+            name: profile?.name || null,
+            email: profile?.email || '',
+            role: profile?.role || '',
+          };
         });
-        whitelisted = (await Promise.all(checks)).filter(Boolean);
+      } catch (e) {
+        // Fallback: kontrak lama belum ada getWhitelistedCreators() — pakai metode lama
+        console.warn('getWhitelistedCreators() tidak tersedia, gunakan fallback MongoDB user check:', e.message);
+        if (usersData && usersData.data) {
+          const checks = usersData.data.map(async (u) => {
+            try {
+              if (!u.wallet || !/^0x[a-fA-F0-9]{40}$/.test(u.wallet)) return null;
+              const isWl = await readOnlyContract.verifiedCreators(u.wallet);
+              return isWl ? u : null;
+            } catch (e) {
+              return null;
+            }
+          });
+          whitelisted = (await Promise.all(checks)).filter(Boolean);
+        }
+      }
+
+      // ── REVOKE: Baca event CreatorVerified(status=false) dari blockchain ──
+      let revoked = [];
+      if (provider) {
+        try {
+          const isSepolia = networkId === '11155111';
+          const fromBlock = isSepolia ? 10620000n : 0n; // Mulai dari blok deploy kontrak baru
+          const revokeLogs = await provider.getLogs({
+            address: import.meta.env.VITE_CONTRACT_ADDRESS,
+            event: parseAbiItem('event CreatorVerified(address indexed creator, bool indexed status, uint256 timestamp)'),
+            fromBlock,
+          }).catch(() => []);
+
+          // Buat lookup profile dari MongoDB untuk tampilkan nama
+          const profileMap = {};
+          if (usersData && usersData.data) {
+            usersData.data.forEach(u => {
+              if (u.wallet) profileMap[u.wallet.toLowerCase()] = u;
+            });
+          }
+
+          // Filter hanya event revoke (status === false)
+          const revokeOnlyLogs = revokeLogs.filter(log => log.args && log.args.status === false);
+          revoked = revokeOnlyLogs.map(log => {
+            const addr = log.args.creator;
+            const profile = profileMap[addr.toLowerCase()];
+            return {
+              wallet: addr,
+              name: profile?.name || null,
+              txHash: log.transactionHash,
+              timestamp: Number(log.args.timestamp),
+            };
+          }).reverse();
+        } catch (e) {
+          console.warn('Failed to fetch revoke logs:', e);
+        }
       }
 
       setAllDonations([...verifiedDonations].reverse());
       setAllCampaigns([...verifiedCampaigns].reverse());
       setAllWithdrawals([...verifiedWithdrawals].reverse());
       setAllWhitelisted([...whitelisted].reverse());
+      setAllRevoked(revoked);
     } catch (err) {
       console.error('Error fetching transparency data:', err);
     } finally {
@@ -299,11 +361,20 @@ export default function TransparencyPage() {
       w.wallet.toLowerCase().includes(q);
   }), [allWhitelisted, searchTx]);
 
+  const filteredRevoked = useMemo(() => allRevoked.filter(r => {
+    if (!searchTx) return true;
+    const q = searchTx.toLowerCase();
+    return (r.name && r.name.toLowerCase().includes(q)) ||
+      r.wallet.toLowerCase().includes(q) ||
+      (r.txHash && r.txHash.toLowerCase().includes(q));
+  }), [allRevoked, searchTx]);
+
   // Pagination hooks
   const donationPg = usePagination(filteredDonations);
   const campaignPg = usePagination(filteredCampaigns);
   const withdrawalPg = usePagination(filteredWithdrawals);
   const whitelistPg = usePagination(filteredWhitelisted);
+  const revokePg = usePagination(filteredRevoked);
 
   // Explorer URL Helpers
   const isSepolia = networkId === '11155111';
@@ -423,6 +494,13 @@ export default function TransparencyPage() {
                 onClick={() => setTab('whitelist')}
               >
                 <BadgeCheck size={14} /> Daftar Whitelist ({allWhitelisted.length})
+              </button>
+              <button
+                className={`trans-tab ${tab === 'revoke' ? 'active' : ''}`}
+                onClick={() => setTab('revoke')}
+                style={allRevoked.length > 0 ? { '--tab-active-color': 'var(--danger-400, #f87171)' } : {}}
+              >
+                <XCircle size={14} /> Daftar Revoke ({allRevoked.length})
               </button>
             </div>
 
@@ -811,6 +889,95 @@ export default function TransparencyPage() {
                   </table>
                 </div>
                 <Pagination {...whitelistPg} total={filteredWhitelisted.length} />
+              </div>
+            )}
+
+            {/* TABLE: Revoke */}
+            {tab === 'revoke' && (
+              <div className="trans-list-container">
+                <Pagination {...revokePg} total={filteredRevoked.length} />
+                <div className="trans-table-wrapper">
+                  <table className="trans-table">
+                    <thead>
+                      <tr>
+                        <th className="col-id" style={{ width: '60px' }}>No</th>
+                        <th className="col-name">Nama (Profil)</th>
+                        <th className="col-wallet">Wallet Address</th>
+                        <th className="col-time">Waktu Revoke</th>
+                        <th className="col-hash">Tx Hash Bukti</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {revokePg.paged.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="empty-cell">
+                            {allRevoked.length === 0
+                              ? 'Belum ada address yang dicabut aksesnya'
+                              : 'Tidak ada hasil pencarian'}
+                          </td>
+                        </tr>
+                      ) : revokePg.paged.map((r, i) => (
+                        <tr key={i} className="trans-row">
+                          <td>
+                            <span className="id-badge" style={{ background: 'rgba(248,113,113,0.15)', color: 'var(--danger-400, #f87171)' }}>
+                              {(revokePg.page - 1) * revokePg.pageSize + i + 1}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <XCircle size={15} style={{ color: 'var(--danger-400, #f87171)', flexShrink: 0 }} />
+                              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                {r.name || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontWeight: 400 }}>Tidak terdaftar</span>}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="wallet-cell">
+                              <span className="addr monospace">{r.wallet}</span>
+                              <button className="copy-tiny" onClick={() => copyText(r.wallet, `rev-addr-${i}`)}>
+                                {copiedHash === `rev-addr-${i}` ? <CheckCircle size={10} style={{ color: 'var(--success-400)' }} /> : <Copy size={10} />}
+                              </button>
+                            </div>
+                          </td>
+                          <td>
+                            {r.timestamp ? (
+                              <span className="time-cell">
+                                <Clock size={11} />
+                                {new Date(r.timestamp * 1000).toLocaleString('id-ID', {
+                                  day: 'numeric', month: 'short', year: 'numeric',
+                                  hour: '2-digit', minute: '2-digit'
+                                })}
+                              </span>
+                            ) : <span className="hash-null">—</span>}
+                          </td>
+                          <td>
+                            {r.txHash ? (
+                              <div className="hash-cell">
+                                <Hash size={10} className="hash-icon" style={{ color: 'var(--danger-400, #f87171)' }} />
+                                {explorerUrl ? (
+                                  <a href={getTxUrl(r.txHash)} target="_blank" rel="noopener noreferrer"
+                                    className="hash-text monospace"
+                                    style={{ color: 'var(--danger-400, #f87171)', textDecoration: 'none' }}
+                                    title={r.txHash}>
+                                    {shortHash(r.txHash)}
+                                  </a>
+                                ) : (
+                                  <span className="hash-text monospace" title={r.txHash}>{shortHash(r.txHash)}</span>
+                                )}
+                                <button className="copy-tiny" onClick={() => copyText(r.txHash, `rev-hash-${i}`)} title="Salin hash">
+                                  {copiedHash === `rev-hash-${i}` ? <CheckCircle size={10} style={{ color: 'var(--success-400)' }} /> : <Copy size={10} />}
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="hash-null">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination {...revokePg} total={filteredRevoked.length} />
               </div>
             )}
           </>

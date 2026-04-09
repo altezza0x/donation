@@ -243,6 +243,12 @@
   border-bottom-color: var(--primary-500);
 }
 
+/* Tab Revoke — warna merah saat aktif */
+.trans-tab.active[style*="--tab-active-color"] {
+  color: var(--danger-400, #f87171);
+  border-bottom-color: var(--danger-400, #f87171);
+}
+
 /* Table lists container overarching wrapper */
 .trans-list-container {
   background: var(--bg-card);

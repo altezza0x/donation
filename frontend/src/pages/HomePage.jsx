@@ -7,7 +7,7 @@ import {
   Shield, Zap, TrendingUp, Users, Heart, ArrowRight,
   ChevronRight, Lock, Eye, CheckCircle, Globe, Star,
   Activity, Clock, Wallet, BarChart2, Hash, ArrowUpRight,
-  MonitorSmartphone, UserPlus, Search, Sparkles, PlusCircle
+  MonitorSmartphone, UserPlus, Search, Sparkles, PlusCircle, BookOpen
 } from 'lucide-react';
 import './HomePage.css';
 
@@ -220,15 +220,22 @@ export default function HomePage() {
               <strong className="highlight-text">smart contract</strong>, kami memastikan tiap jejak donasi Anda mengalir secara transparan, 100% utuh, dan tepat sasaran.
             </p>
 
-            <div className="hero-actions animate-fade-in">
-              <Link to="/campaigns" className="btn-hero-primary">
-                <Heart size={18} />
-                Mulai Donasi
-              </Link>
-              <Link to="/transparency" className="btn-hero-secondary">
-                <Eye size={18} />
-                Lihat Transparansi
-              </Link>
+            <div className="hero-actions-container animate-fade-in">
+              <div className="hero-action-primary-wrapper">
+                <Link to="/campaigns" className="btn-hero-main">
+                  <Heart size={20} className="heartbeat" />
+                  <span>Mulai Berdonasi</span>
+                </Link>
+              </div>
+
+              <div className="hero-actions-secondary">
+                <Link to="/transparency" className="btn-hero-sub">
+                  <Eye size={18} /> Lihat Transparansi
+                </Link>
+                <Link to="/guide" className="btn-hero-sub">
+                  <BookOpen size={18} /> Panduan
+                </Link>
+              </div>
             </div>
 
 

@@ -24,23 +24,51 @@ export default function AdminPage() {
     if (!contract) return;
     setLoadingWhitelist(true);
     try {
-      const res = await fetch(`${API_BASE}/users`);
-      if (res.ok) {
-        const payload = await res.json();
-        if (payload.success && payload.data) {
-          const users = payload.data;
-          const checks = users.map(async (u) => {
-            try {
-              if (!/^0x[a-fA-F0-9]{40}$/.test(u.wallet)) return null;
-              const isWl = await contract.verifiedCreators(u.wallet);
-              return isWl ? { ...u, isWhitelisted: true } : null;
-            } catch (e) { return null; }
-          });
-          const results = await Promise.all(checks);
-          const whitelisted = results.filter(r => r !== null);
-          setWhitelistedUsers(whitelisted);
+      // Coba baca daftar whitelist langsung dari smart contract (kontrak baru)
+      let whitelisted = [];
+      try {
+        const addrs = await contract.getWhitelistedCreators();
+        // Ambil profil MongoDB untuk tampilkan nama (opsional — bukan syarat muncul)
+        const usersRes = await fetch(`${API_BASE}/users`);
+        let profileMap = {};
+        if (usersRes.ok) {
+          const payload = await usersRes.json();
+          if (payload.success && payload.data) {
+            payload.data.forEach(u => {
+              if (u.wallet) profileMap[u.wallet.toLowerCase()] = u;
+            });
+          }
+        }
+        whitelisted = addrs.map(addr => {
+          const profile = profileMap[addr.toLowerCase()];
+          return {
+            wallet: addr,
+            name: profile?.name || addr.slice(0, 6) + '...' + addr.slice(-4),
+            email: profile?.email || '',
+            isWhitelisted: true,
+          };
+        });
+      } catch (e) {
+        // Fallback: kontrak lama — iterasi MongoDB user dan cek per-address
+        console.warn('getWhitelistedCreators() tidak tersedia, pakai fallback:', e.message);
+        const res = await fetch(`${API_BASE}/users`);
+        if (res.ok) {
+          const payload = await res.json();
+          if (payload.success && payload.data) {
+            const users = payload.data;
+            const checks = users.map(async (u) => {
+              try {
+                if (!/^0x[a-fA-F0-9]{40}$/.test(u.wallet)) return null;
+                const isWl = await contract.verifiedCreators(u.wallet);
+                return isWl ? { ...u, isWhitelisted: true } : null;
+              } catch (e) { return null; }
+            });
+            const results = await Promise.all(checks);
+            whitelisted = results.filter(r => r !== null);
+          }
         }
       }
+      setWhitelistedUsers(whitelisted);
     } catch (error) {
       console.error("Gagal mendapatkan daftar whitelist", error);
     } finally {
@@ -263,16 +291,15 @@ export default function AdminPage() {
   };
 
   const handleCopy = (address) => {
+    if (!address) return;
     navigator.clipboard.writeText(address);
-    toast.success('Alamat disalin!', {
-      icon: '📋',
+    toast.success('Address disalin!', {
       style: {
-        background: 'rgba(15, 23, 42, 0.9)',
+        borderRadius: '10px',
+        background: '#1e293b',
         color: '#fff',
-        backdropFilter: 'blur(10px)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '12px'
-      }
+        fontSize: '13px'
+      },
     });
   };
 

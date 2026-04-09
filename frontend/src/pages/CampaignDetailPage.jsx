@@ -647,7 +647,7 @@ export default function CampaignDetailPage() {
             {/* Blockchain info */}
             <div className="blockchain-info glass-card">
               <h3 className="blockchain-info-title">
-                <Shield size={16} /> Info Blockchain
+                Informasi Blockchain
               </h3>
               <div className="blockchain-info-items">
                 <div className="bc-item">
@@ -657,7 +657,7 @@ export default function CampaignDetailPage() {
                 <div className="bc-item">
                   <span className="bc-label">Pemilik Kampanye</span>
                   <span className="bc-value monospace short-addr">
-                    {campaign.owner.slice(0, 10)}...{campaign.owner.slice(-6)}
+                    {campaign.owner.slice(0, 14)}...{campaign.owner.slice(-10)}
                     <button className="copy-btn" onClick={() => copyAddress(campaign.owner)}>
                       <Copy size={11} />
                     </button>
@@ -667,7 +667,7 @@ export default function CampaignDetailPage() {
                   <div className="bc-item">
                     <span className="bc-label">Penerima Dana</span>
                     <span className="bc-value monospace short-addr">
-                      {campaign.beneficiary.slice(0, 10)}...{campaign.beneficiary.slice(-6)}
+                      {campaign.beneficiary.slice(0, 14)}...{campaign.beneficiary.slice(-10)}
                       <button className="copy-btn" onClick={() => copyAddress(campaign.beneficiary)}>
                         <Copy size={11} />
                       </button>
@@ -677,7 +677,7 @@ export default function CampaignDetailPage() {
                 <div className="bc-item">
                   <span className="bc-label">Token Pembayaran</span>
                   <span className="bc-value monospace short-addr" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>USDC · {usdcAddress ? `${usdcAddress.slice(0, 10)}...${usdcAddress.slice(-6)}` : '-'}</span>
+                    <span>{usdcAddress ? `${usdcAddress.slice(0, 14)}...${usdcAddress.slice(-10)}` : '-'}</span>
                     {usdcAddress && (
                       <button className="copy-btn" onClick={() => copyAddress(usdcAddress)}>
                         <Copy size={11} />
@@ -690,14 +690,14 @@ export default function CampaignDetailPage() {
                   <span className="bc-value">{new Date(Number(campaign.createdAt) * 1000).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                 </div>
                 {creationTxHash && (
-                  <div className="bc-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
+                  <div className="bc-item">
                     <span className="bc-label">Tx Hash Pembuatan</span>
                     <a href={`https://sepolia.etherscan.io/tx/${creationTxHash}`}
                       target="_blank" rel="noopener noreferrer"
-                      className="bc-value monospace short-addr"
-                      style={{ color: 'var(--primary-400)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      className="bc-value monospace"
+                      style={{ color: 'var(--primary-400)', textDecoration: 'none' }}>
                       {creationTxHash.slice(0, 14)}...{creationTxHash.slice(-10)}
-                      <ExternalLink size={12} />
+                      <ExternalLink size={14} style={{ flexShrink: 0 }} />
                     </a>
                   </div>
                 )}
